@@ -6,12 +6,18 @@ import (
 	"os"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/joho/godotenv"
 )
 
 func Init(ctx context.Context) (*pgx.Conn, error) {
-	msgConn := os.Getenv("DATABASE_URL")
+	err := godotenv.Load()
+	if err != nil {
+		return nil, fmt.Errorf("load env file: %w", err)
+	}
+
+	msgConn := os.Getenv("DB_URL")
 	if msgConn == "" {
-		msgConn = "postgres://postgres:postgres@localhost:5432/app_dev?sslmode=disable"
+		return nil, fmt.Errorf("env file is empty")
 	}
 
 	conn, err := pgx.Connect(ctx, msgConn)

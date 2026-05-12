@@ -28,12 +28,12 @@ func main() {
 	hand := handler.NewHandler(srv)
 
 	log.Println("Server STARTED")
-		router.Get("/ping", hand.Ping)
-		router.Post("/create", hand.CreateUser)
-		router.Get("/get/{id}", hand.GetUser)
-		router.Delete("/delete/{id}", hand.DeleteUser)
-		router.Put("/update", hand.UpdateUser)
-		router.Get("/list", hand.GetUsersList)
-		
+	router.Get("/ping", hand.Ping)
+	router.Post("/create", hand.CreateUser)
+	router.Get("/get/{id}", hand.GetUser)
+	router.Delete("/delete/{id}", hand.DeleteUser)
+	router.Put("/update", hand.UpdateUser)
+	router.Get("/list", hand.GetUsersList)
+
 	log.Fatal(http.ListenAndServe(":8080", router))
 }
