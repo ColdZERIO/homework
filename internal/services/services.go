@@ -6,7 +6,7 @@ import (
 )
 
 type Store interface {
-	CreateUser(ctx context.Context, user model.User) error
+	CreateUser(ctx context.Context, user model.User) (int, error)
 	DeleteUser(ctx context.Context, id int) error
 	GetUser(ctx context.Context, id int) (model.User, error)
 	UpdateUser(ctx context.Context, user model.User) error
@@ -21,13 +21,13 @@ func NewServices(store Store) *Services {
 	return &Services{store: store}
 }
 
-func (s *Services) CreateUser(ctx context.Context, user model.User) error {
-	err := s.store.CreateUser(ctx, user)
+func (s *Services) CreateUser(ctx context.Context, user model.User) (int, error) {
+	id, err := s.store.CreateUser(ctx, user)
 	if err != nil {
-		return err
+		return 0, err
 	}
 
-	return nil
+	return id, nil
 }
 
 func (s *Services) DeleteUser(ctx context.Context, id int) error {
