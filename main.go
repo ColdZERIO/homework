@@ -8,6 +8,7 @@ import (
 	postgres "homework/pkg/db"
 	"log"
 	"net/http"
+	"time"
 
 	"github.com/go-chi/chi"
 	_ "github.com/jackc/pgx/v5/stdlib"
@@ -16,7 +17,9 @@ import (
 func main() {
 	router := chi.NewRouter()
 
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), 10 * time.Second)
+	defer cancel()
+
 	db, err := postgres.Init(ctx)
 	if err != nil {
 		log.Fatal(err)
