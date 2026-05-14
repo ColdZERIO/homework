@@ -9,7 +9,7 @@ import (
 )
 
 type Service interface {
-	CreateUser(ctx context.Context, user model.User) error
+	CreateUser(ctx context.Context, user model.User) (int, error)
 	DeleteUser(ctx context.Context, id int) error
 	GetUser(ctx context.Context, id int) (model.User, error)
 	UpdateUser(ctx context.Context, user model.User) error
@@ -42,7 +42,6 @@ func (h *Handler) CreateUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var user model.User
-	ctx := context.Background()
 
 	err := json.NewDecoder(r.Body).Decode(&user)
 	if err != nil {
@@ -50,7 +49,7 @@ func (h *Handler) CreateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	
-	err = h.svc.CreateUser(ctx, user)
+	id, err := h.svc.CreateUser(r.Context(), user)
 	if err != nil {
 		jsonResponseErr(w, http.StatusInternalServerError, "cant add to DB")
 		return
@@ -59,7 +58,7 @@ func (h *Handler) CreateUser(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(map[string]any{
-		"User": user,
+		"UserID": id,
 	})
 }
 
@@ -81,7 +80,7 @@ func (h *Handler) GetUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user, err := h.svc.GetUser(context.Background(), id)
+	user, err := h.svc.GetUser(r.Context(), id)
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
@@ -108,7 +107,7 @@ func (h *Handler) DeleteUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = h.svc.DeleteUser(context.Background(), id)
+	err = h.svc.DeleteUser(r.Context(), id)
 	if err != nil {
 		jsonResponseErr(w, http.StatusInternalServerError, "cant delete from DB")
 		return
@@ -128,7 +127,6 @@ func (h *Handler) UpdateUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var user model.User
-	ctx := context.Background()
 
 	err := json.NewDecoder(r.Body).Decode(&user)
 	if err != nil {
@@ -136,7 +134,7 @@ func (h *Handler) UpdateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	
-	err = h.svc.UpdateUser(ctx, user)
+	err = h.svc.UpdateUser(r.Context(), user)
 	if err != nil {
 		jsonResponseErr(w, http.StatusInternalServerError, "cant update in DB")
 		return
@@ -155,7 +153,7 @@ func (h *Handler) GetUsersList(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	users, err := h.svc.GetUsersList(context.Background())
+	users, err := h.svc.GetUsersList(r.Context())
 	if err != nil {
 		jsonResponseErr(w, http.StatusInternalServerError, "cant get from DB")
 		return

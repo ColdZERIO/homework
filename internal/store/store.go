@@ -5,39 +5,29 @@ import (
 	"homework/internal/model"
 	"log"
 
-	"github.com/jackc/pgx/v5"
+	"gorm.io/gorm"
 )
 
 type Store struct {
-	db *pgx.Conn
+	db *gorm.DB
 }
 
-func NewStore(db *pgx.Conn) *Store {
+func NewStore(db *gorm.DB) *Store {
 	return &Store{db: db}
 }
 
-func (s *Store) CreateUser(ctx context.Context, user model.User) error {
-	query := `
-	INSERT INTO users (name, email)
-	VALUES ($1, $2)
-	`
-
-	_, err := s.db.Exec(ctx, query, user.Name, user.Email)
+func (s *Store) CreateUser(ctx context.Context, user model.User) (int, error) {
+	err := s.db.WithContext(ctx).Create(&user).Error
 	if err != nil {
 		log.Println(err)
-		return err
+		return 0, err
 	}
 
-	return nil
+	return user.ID, nil
 }
 
 func (s *Store) DeleteUser(ctx context.Context, id int) error {
-	query := `
-	DELETE FROM users
-	WHERE id = $1
-	`
-
-	_, err := s.db.Exec(ctx, query, id)
+	err := s.db.WithContext(ctx).Delete(&model.User{}, id).Error
 	if err != nil {
 		log.Println(err)
 		return err
@@ -47,14 +37,8 @@ func (s *Store) DeleteUser(ctx context.Context, id int) error {
 }
 
 func (s *Store) GetUser(ctx context.Context, id int) (model.User, error) {
-	query := `
-	SELECT id, name, email
-	FROM users
-	WHERE id = $1
-	`
-
 	var user model.User
-	err := s.db.QueryRow(ctx, query, id).Scan(&user.ID, &user.Name, &user.Email)
+	err := s.db.WithContext(ctx).First(&user, id).Error
 	if err != nil {
 		log.Println(err)
 		return model.User{}, err
@@ -64,13 +48,7 @@ func (s *Store) GetUser(ctx context.Context, id int) (model.User, error) {
 }
 
 func (s *Store) UpdateUser(ctx context.Context, user model.User) error {
-	query := `
-	UPDATE users
-	SET name = $1, email = $2
-	WHERE id = $3
-	`
-
-	_, err := s.db.Exec(ctx, query, user.Name, user.Email, user.ID)
+	err := s.db.WithContext(ctx).Model(&model.User{}).Where("id = ?", user.ID).Updates(model.User{Name: user.Name, Email: user.Email}).Error
 	if err != nil {
 		log.Println(err)
 		return err
@@ -80,27 +58,11 @@ func (s *Store) UpdateUser(ctx context.Context, user model.User) error {
 }
 
 func (s *Store) GetUsersList(ctx context.Context) ([]model.User, error) {
-	query := `
-	SELECT id, name, email
-	FROM users
-	`
-
-	rows, err := s.db.Query(ctx, query)
+	var users []model.User
+	err := s.db.WithContext(ctx).Find(&users).Error
 	if err != nil {
 		log.Println(err)
 		return nil, err
-	}
-	defer rows.Close()
-
-	var users []model.User
-	for rows.Next() {
-		var user model.User
-		err := rows.Scan(&user.ID, &user.Name, &user.Email)
-		if err != nil {
-			log.Println(err)
-			return nil, err
-		}
-		users = append(users, user)
 	}
 
 	return users, nil
