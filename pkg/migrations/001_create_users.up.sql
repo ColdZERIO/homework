@@ -1,0 +1,9 @@
+CREATE TABLE IF NOT EXISTS users (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(100) NOT NULL,
+    age INT DEFAULT 0,
+    email VARCHAR(100) NOT NULL DEFAULT '',
+    created_at BIGINT NOT NULL DEFAULT 0
+);
+
+CREATE INDEX IF NOT EXISTS name_index ON users(name);

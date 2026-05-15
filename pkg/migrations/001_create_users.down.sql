@@ -1,0 +1,2 @@
+DROP INDEX IF EXISTS name_index;
+DROP TABLE IF EXISTS users;
