@@ -15,9 +15,16 @@ import (
 
 	"github.com/go-chi/chi"
 	_ "github.com/jackc/pgx/v5/stdlib"
+	"github.com/joho/godotenv"
 )
 
 func main() {
+	err := godotenv.Load()
+	if err != nil {
+		log.Println("load env file: %w", err)
+		return
+	}
+
 	router := chi.NewRouter()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -29,7 +36,7 @@ func main() {
 		return
 	}
 
-	err = postgres.MigrationRun(ctx)
+	err = postgres.MigrationRun(ctx, db)
 	if err != nil {
 		log.Fatal(err)
 		return

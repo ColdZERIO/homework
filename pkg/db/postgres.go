@@ -6,7 +6,6 @@ import (
 	"os"
 
 	"github.com/golang-migrate/migrate/v4"
-	"github.com/joho/godotenv"
 
 	_ "github.com/golang-migrate/migrate/v4/database/postgres"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
@@ -17,11 +16,6 @@ import (
 )
 
 func Init(ctx context.Context) (*gorm.DB, error) {
-	err := godotenv.Load()
-	if err != nil {
-		return nil, fmt.Errorf("load env file: %w", err)
-	}
-
 	msgConn := os.Getenv("DB_URL")
 	if msgConn == "" {
 		return nil, fmt.Errorf("env file is empty")
@@ -45,7 +39,7 @@ func Init(ctx context.Context) (*gorm.DB, error) {
 	return conn, nil
 }
 
-func MigrationRun(ctx context.Context) error {
+func MigrationRun(ctx context.Context, db *gorm.DB) error {
 	envMsg := os.Getenv("DB_MIGRATION_URL")
 	if envMsg == "" {
 		return fmt.Errorf("env file is empty")
@@ -55,10 +49,40 @@ func MigrationRun(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("create migrate instance: %w", err)
 	}
+	defer m.Close()
+
+	hasUsersTable := db.WithContext(ctx).Migrator().HasTable("users")
+	if !hasUsersTable {
+		version, _, err := m.Version()
+		if err != nil && err != migrate.ErrNilVersion {
+			return fmt.Errorf("get migration version: %w", err)
+		}
+		if err == nil && version == 0 {
+			if err := m.Force(-1); err != nil {
+				return fmt.Errorf("force migration version: %w", err)
+			}
+		}
+	}
 
 	err = m.Up()
-	if err != nil && err != migrate.ErrNoChange {
+	if err == nil {
+		return nil
+	}
+
+	if err != migrate.ErrNoChange {
 		return fmt.Errorf("run migration: %w", err)
+	}
+
+	if hasUsersTable {
+		return nil
+	}
+
+	if err := m.Force(-1); err != nil {
+		return fmt.Errorf("force migration version: %w", err)
+	}
+
+	if err := m.Up(); err != nil && err != migrate.ErrNoChange {
+		return fmt.Errorf("rerun migration: %w", err)
 	}
 
 	return nil

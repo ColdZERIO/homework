@@ -1,9 +1,29 @@
 package model
 
 type User struct {
-	ID        int    `gorm:"primaryKey" json:"id"`
-	Name      string `gorm:"type:varchar(100);not null;index:name_index" json:"name"`
-	Age       int    `gorm:"type:int;default 0" json:"age"`
-	Email     string `gorm:"type:varchar(100);not null;default:''" json:"email"`
-	CreatedAt int64  `gorm:"autoCreateTime" json:"created_at"`
+	ID        int    `json:"id"`
+	Login     string `json:"login"`
+	Name      string `json:"name"`
+	Email     string `json:"email"`
+	CreatedAt int64  `json:"created_at"`
+}
+
+type UserDB struct {
+	ID        int    `gorm:"column:id;primaryKey"`
+	Login     string `gorm:"column:login"`
+	Password  string `gorm:"column:password"`
+	Name      string `gorm:"column:name"`
+	Email     string `gorm:"column:email"`
+	CreatedAt int64  `gorm:"column:created_at"`
+}
+
+func (UserDB) TableName() string {
+	return "users"
+}
+
+type UserRequest struct {
+	Login    string `json:"login"`
+	Password string `json:"password"`
+	Name     string `json:"name"`
+	Email    string `json:"email"`
 }

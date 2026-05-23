@@ -1,9 +1,11 @@
 CREATE TABLE IF NOT EXISTS users (
     id SERIAL PRIMARY KEY,
-    name VARCHAR(100) NOT NULL,
-    age INT DEFAULT 0,
-    email VARCHAR(100) NOT NULL DEFAULT '',
-    created_at BIGINT NOT NULL DEFAULT 0
+    login VARCHAR(30) NOT NULL,
+    password VARCHAR(256) NOT NULL,
+    Name VARCHAR(256) NOT NULL,
+    email VARCHAR(256) NOT NULL,
+    created_at BIGINT NOT NULL
 );
 
-CREATE INDEX IF NOT EXISTS name_index ON users(name);
+CREATE INDEX IF NOT EXISTS login_index ON users(login);
+CREATE INDEX IF NOT EXISTS email_index ON users(email);

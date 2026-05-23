@@ -3,13 +3,15 @@ package services
 import (
 	"context"
 	"homework/internal/model"
+	"strconv"
+	"time"
 )
 
 type Store interface {
-	CreateUser(ctx context.Context, user model.User) (int, error)
+	CreateUser(ctx context.Context, userDB model.UserDB) (int, error)
 	DeleteUser(ctx context.Context, id int) error
 	GetUser(ctx context.Context, id int) (model.User, error)
-	UpdateUser(ctx context.Context, user model.User) error
+	UpdateUser(ctx context.Context, userReq model.UserRequest) error
 	GetUsersList(ctx context.Context) ([]model.User, error)
 }
 
@@ -21,8 +23,16 @@ func NewServices(store Store) *Services {
 	return &Services{store: store}
 }
 
-func (s *Services) CreateUser(ctx context.Context, user model.User) (int, error) {
-	id, err := s.store.CreateUser(ctx, user)
+func (s *Services) CreateUser(ctx context.Context, userReq model.UserRequest) (int, error) {
+	userDB := model.UserDB{
+		Login:     userReq.Login,
+		Password:  HashPassword(userReq.Password),
+		Name:      userReq.Name,
+		Email:     userReq.Email,
+		CreatedAt: time.Now().Unix(),
+	}
+
+	id, err := s.store.CreateUser(ctx, userDB)
 	if err != nil {
 		return 0, err
 	}
@@ -39,7 +49,12 @@ func (s *Services) DeleteUser(ctx context.Context, id int) error {
 	return nil
 }
 
-func (s *Services) GetUser(ctx context.Context, id int) (model.User, error) {
+func (s *Services) GetUser(ctx context.Context, userID string) (model.User, error) {
+	id, err := strconv.Atoi(userID)
+	if err != nil {
+		return model.User{}, err
+	}
+
 	user, err := s.store.GetUser(ctx, id)
 	if err != nil {
 		return model.User{}, err
@@ -48,8 +63,8 @@ func (s *Services) GetUser(ctx context.Context, id int) (model.User, error) {
 	return user, nil
 }
 
-func (s *Services) UpdateUser(ctx context.Context, user model.User) error {
-	err := s.store.UpdateUser(ctx, user)
+func (s *Services) UpdateUser(ctx context.Context, userReq model.UserRequest) error {
+	err := s.store.UpdateUser(ctx, userReq)
 	if err != nil {
 		return err
 	}
