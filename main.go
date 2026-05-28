@@ -4,7 +4,7 @@ import (
 	"context"
 	handler "homework/internal/handlers"
 	"homework/internal/services"
-	"homework/internal/store"
+	"homework/internal/storage"
 	postgres "homework/pkg/db"
 	"log"
 	"net/http"
@@ -13,7 +13,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/go-chi/chi"
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/joho/godotenv"
 )
@@ -25,8 +24,6 @@ func main() {
 		return
 	}
 
-	router := chi.NewRouter()
-
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -36,35 +33,28 @@ func main() {
 		return
 	}
 
-	err = postgres.MigrationRun(ctx, db)
+	err = postgres.MigrationRun()
 	if err != nil {
 		log.Fatal(err)
 		return
 	}
 
-	store := store.NewStore(db)
-	srv := services.NewServices(store)
-	hand := handler.NewHandler(srv)
+	storage := storage.UserStorage(db)
+	service := services.UserServices(storage)
+	hand := handler.UserHandler(service)
 
-	router.Get("/ping", hand.Ping)
-	router.Post("/create", hand.CreateUser)
-	router.Get("/get/{id}", hand.GetUser)
-	router.Delete("/delete/{id}", hand.DeleteUser)
-	router.Put("/update", hand.UpdateUser)
-	router.Get("/list", hand.GetUsersList)
+	router := routers(hand)
 
 	httpServer := &http.Server{
 		Addr:    ":8080",
 		Handler: router,
 	}
 
-	go func() {
-		log.Println("Server STARTED")
+	log.Println("Server STARTED")
 
-		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Fatal(err)
-		}
-	}()
+	if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		log.Fatal(err)
+	}
 
 	ctx, stop := signal.NotifyContext(
 		context.Background(),

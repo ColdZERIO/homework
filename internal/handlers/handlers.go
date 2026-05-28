@@ -8,19 +8,26 @@ import (
 	"strconv"
 )
 
+type UserRequest struct {
+	Login    string `json:"login"`
+	Password string `json:"password"`
+	Name     string `json:"name"`
+	Email    string `json:"email"`
+}
+
 type Service interface {
-	CreateUser(ctx context.Context, userReq model.UserRequest) (int, error)
-	DeleteUser(ctx context.Context, id int) error
-	GetUser(ctx context.Context, userID string) (model.User, error)
-	UpdateUser(ctx context.Context, userReq model.UserRequest) error
-	GetUsersList(ctx context.Context) ([]model.User, error)
+	Persist(ctx context.Context, userReq UserRequest) (int, error)
+	Delete(ctx context.Context, id int) error
+	FindByID(ctx context.Context, userID string) (model.User, error)
+	Update(ctx context.Context, userReq UserRequest) error
+	GetList(ctx context.Context) ([]model.User, error)
 }
 
 type Handler struct {
 	svc Service
 }
 
-func NewHandler(svc Service) *Handler {
+func UserHandler(svc Service) *Handler {
 	return &Handler{svc: svc}
 }
 
@@ -30,8 +37,8 @@ func (h *Handler) Ping(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte("pong"))
 }
 
-func (h *Handler) CreateUser(w http.ResponseWriter, r *http.Request) {
-	var user model.UserRequest
+func (h *Handler) Persist(w http.ResponseWriter, r *http.Request) {
+	var user UserRequest
 
 	err := json.NewDecoder(r.Body).Decode(&user)
 	if err != nil {
@@ -39,7 +46,7 @@ func (h *Handler) CreateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	
-	id, err := h.svc.CreateUser(r.Context(), user)
+	id, err := h.svc.Persist(r.Context(), user)
 	if err != nil {
 		jsonResponseErr(w, http.StatusInternalServerError, "cant add to DB")
 		return
@@ -52,14 +59,14 @@ func (h *Handler) CreateUser(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func (h *Handler) GetUser(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) FindByID(w http.ResponseWriter, r *http.Request) {
 	userID := r.URL.Query().Get("id")
 	if userID == "" {
 		jsonResponseErr(w, http.StatusBadRequest, "id is required")
 		return
 	}
 
-	user, err := h.svc.GetUser(r.Context(), userID)
+	user, err := h.svc.FindByID(r.Context(), userID)
 	if err != nil {
 		jsonResponseErr(w, http.StatusBadRequest, "can`t fiend user by id")
 	}
@@ -71,7 +78,7 @@ func (h *Handler) GetUser(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func (h *Handler) DeleteUser(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
 	userID := r.URL.Query().Get("id")
 	if userID == "" {
 		jsonResponseErr(w, http.StatusBadRequest, "id is required")
@@ -84,7 +91,7 @@ func (h *Handler) DeleteUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = h.svc.DeleteUser(r.Context(), id)
+	err = h.svc.Delete(r.Context(), id)
 	if err != nil {
 		jsonResponseErr(w, http.StatusInternalServerError, "cant delete from DB")
 		return
@@ -97,8 +104,8 @@ func (h *Handler) DeleteUser(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func (h *Handler) UpdateUser(w http.ResponseWriter, r *http.Request) {
-	var user model.UserRequest
+func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
+	var user UserRequest
 
 	err := json.NewDecoder(r.Body).Decode(&user)
 	if err != nil {
@@ -106,7 +113,7 @@ func (h *Handler) UpdateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	
-	err = h.svc.UpdateUser(r.Context(), user)
+	err = h.svc.Update(r.Context(), user)
 	if err != nil {
 		jsonResponseErr(w, http.StatusInternalServerError, "cant update in DB")
 		return
@@ -119,8 +126,8 @@ func (h *Handler) UpdateUser(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func (h *Handler) GetUsersList(w http.ResponseWriter, r *http.Request) {
-	users, err := h.svc.GetUsersList(r.Context())
+func (h *Handler) GetList(w http.ResponseWriter, r *http.Request) {
+	users, err := h.svc.GetList(r.Context())
 	if err != nil {
 		jsonResponseErr(w, http.StatusInternalServerError, "cant get from DB")
 		return
