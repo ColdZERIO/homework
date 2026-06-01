@@ -2,6 +2,7 @@ package storage
 
 import (
 	"context"
+	"fmt"
 	handler "homework/internal/handlers"
 	"homework/internal/model"
 	"log"
@@ -16,14 +17,19 @@ type UserDB struct {
 	Name      string `gorm:"column:name"`
 	Email     string `gorm:"column:email"`
 	CreatedAt int64  `gorm:"column:created_at"`
+	IsActive  bool   `gorm:"column:is_active"`
 }
 
 type Storage struct {
-	db *gorm.DB
+	db    *gorm.DB
+	cache *MemoryCache
 }
 
 func UserStorage(db *gorm.DB) *Storage {
-	return &Storage{db: db}
+	return &Storage{
+		db:    db,
+		cache: UserMemoryCache(),
+	}
 }
 
 func (s *Storage) Persist(ctx context.Context, userDB UserDB) (int, error) {
@@ -33,20 +39,35 @@ func (s *Storage) Persist(ctx context.Context, userDB UserDB) (int, error) {
 		return 0, err
 	}
 
+	s.cache.Clear()
+
 	return userDB.ID, nil
 }
 
 func (s *Storage) Delete(ctx context.Context, id int) error {
-	err := s.db.WithContext(ctx).Delete(&UserDB{}, id).Error
+	userDB := UserDB{
+		IsActive: false,
+	}
+
+	err := s.db.WithContext(ctx).Model(&UserDB{}).Where("id = ?", userDB.ID).Updates(userDB.IsActive).Error // ???
 	if err != nil {
 		log.Println(err)
 		return err
 	}
 
+	s.cache.Clear()
+
 	return nil
 }
 
 func (s *Storage) FindByID(ctx context.Context, id int) (model.User, error) {
+	key := fmt.Sprintf("userID: %d", id)
+
+	if value, ok := s.cache.Get(key); ok {
+		user := value.(model.User)
+		return user, nil
+	}
+
 	var userDB UserDB
 	err := s.db.WithContext(ctx).First(&userDB, id).Error
 	if err != nil {
@@ -54,13 +75,15 @@ func (s *Storage) FindByID(ctx context.Context, id int) (model.User, error) {
 		return model.User{}, err
 	}
 
+	s.cache.Set(key, ToUser(userDB))
+
 	return ToUser(userDB), nil
 }
 
 func (s *Storage) Update(ctx context.Context, userReq handler.UserRequest) error {
 	userDB := UserDB{
-		Name:      userReq.Name,
-		Email:     userReq.Email,
+		Name:  userReq.Name,
+		Email: userReq.Email,
 	}
 
 	err := s.db.WithContext(ctx).Model(&UserDB{}).Where("id = ?", userDB.ID).Updates(UserDB{Name: userDB.Name, Email: userDB.Email}).Error
@@ -69,10 +92,19 @@ func (s *Storage) Update(ctx context.Context, userReq handler.UserRequest) error
 		return err
 	}
 
+	s.cache.Clear()
+
 	return nil
 }
 
 func (s *Storage) GetList(ctx context.Context) ([]model.User, error) {
+	key := "users:list"
+
+	if value, ok := s.cache.Get(key); ok {
+		users := value.([]model.User)
+		return users, nil
+	}
+
 	var usersDB []UserDB
 
 	err := s.db.WithContext(ctx).Find(&usersDB).Error
@@ -81,7 +113,11 @@ func (s *Storage) GetList(ctx context.Context) ([]model.User, error) {
 		return nil, err
 	}
 
-	return ToUserList(usersDB), nil
+	users := ToUserList(usersDB)
+
+	s.cache.Set(key, users)
+
+	return users, nil
 }
 
 func ToUser(userDB UserDB) model.User {

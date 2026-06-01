@@ -32,6 +32,7 @@ func (s *Services) Persist(ctx context.Context, userReq handler.UserRequest) (in
 		Name:      userReq.Name,
 		Email:     userReq.Email,
 		CreatedAt: time.Now().Unix(),
+		IsActive:  true,
 	}
 
 	id, err := s.store.Persist(ctx, userDB)
