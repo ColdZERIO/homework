@@ -9,12 +9,20 @@ import (
 	"time"
 )
 
+/*
+- Исправлен интерфейс и название функций
+- Добавлена уникальность полей login и email
+- Добавлены параметры limit и offset для получения списка пользователей
+- Теперь handler обрабатывает JSON запросы и ответы
+- 
+*/
+
 type Storage interface {
 	Persist(ctx context.Context, userDB storage.UserDB) (int, error)
 	Delete(ctx context.Context, id int) error
-	FindByID(ctx context.Context, id int) (model.User, error)
+	Find(ctx context.Context, id int) (model.User, error)
 	Update(ctx context.Context, userReq handler.UserRequest) error
-	GetList(ctx context.Context) ([]model.User, error)
+	GetList(ctx context.Context, limit, offset int) ([]model.User, error)
 }
 
 type Services struct {
@@ -52,13 +60,13 @@ func (s *Services) Delete(ctx context.Context, id int) error {
 	return nil
 }
 
-func (s *Services) FindByID(ctx context.Context, userID string) (model.User, error) {
+func (s *Services) Find(ctx context.Context, userID string) (model.User, error) {
 	id, err := strconv.Atoi(userID)
 	if err != nil {
 		return model.User{}, err
 	}
 
-	user, err := s.store.FindByID(ctx, id)
+	user, err := s.store.Find(ctx, id)
 	if err != nil {
 		return model.User{}, err
 	}
@@ -75,8 +83,8 @@ func (s *Services) Update(ctx context.Context, userReq handler.UserRequest) erro
 	return nil
 }
 
-func (s *Services) GetList(ctx context.Context) ([]model.User, error) {
-	users, err := s.store.GetList(ctx)
+func (s *Services) GetList(ctx context.Context, limit, offset int) ([]model.User, error) {
+	users, err := s.store.GetList(ctx, limit, offset)
 	if err != nil {
 		return nil, err
 	}

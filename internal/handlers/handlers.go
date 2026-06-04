@@ -8,26 +8,31 @@ import (
 	"strconv"
 )
 
+// ToUser на уровень выше
+
 type UserRequest struct {
+	ID       string `json:"id"`
 	Login    string `json:"login"`
 	Password string `json:"password"`
 	Name     string `json:"name"`
 	Email    string `json:"email"`
+	Limit    int    `json:"limit"`
+	Offset   int    `json:"offset"`
 }
 
-type Service interface {
+type UserService interface {
 	Persist(ctx context.Context, userReq UserRequest) (int, error)
 	Delete(ctx context.Context, id int) error
-	FindByID(ctx context.Context, userID string) (model.User, error)
+	Find(ctx context.Context, userID string) (model.User, error)
 	Update(ctx context.Context, userReq UserRequest) error
-	GetList(ctx context.Context) ([]model.User, error)
+	GetList(ctx context.Context, limit, offset int) ([]model.User, error)
 }
 
 type Handler struct {
-	svc Service
+	svc UserService
 }
 
-func UserHandler(svc Service) *Handler {
+func UserHandler(svc UserService) *Handler {
 	return &Handler{svc: svc}
 }
 
@@ -45,7 +50,7 @@ func (h *Handler) Persist(w http.ResponseWriter, r *http.Request) {
 		jsonResponseErr(w, http.StatusBadRequest, "invalid body rec")
 		return
 	}
-	
+
 	id, err := h.svc.Persist(r.Context(), user)
 	if err != nil {
 		jsonResponseErr(w, http.StatusInternalServerError, "cant add to DB")
@@ -60,13 +65,15 @@ func (h *Handler) Persist(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) FindByID(w http.ResponseWriter, r *http.Request) {
-	userID := r.URL.Query().Get("id")
-	if userID == "" {
+	var user UserRequest
+
+	err := json.NewDecoder(r.Body).Decode(&user)
+	if user.ID == "" {
 		jsonResponseErr(w, http.StatusBadRequest, "id is required")
 		return
 	}
 
-	user, err := h.svc.FindByID(r.Context(), userID)
+	newUser, err := h.svc.Find(r.Context(), user.ID)
 	if err != nil {
 		jsonResponseErr(w, http.StatusBadRequest, "can`t fiend user by id")
 	}
@@ -74,18 +81,20 @@ func (h *Handler) FindByID(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(map[string]any{
-		"User": user,
+		"User": newUser,
 	})
 }
 
 func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
-	userID := r.URL.Query().Get("id")
-	if userID == "" {
+	var user UserRequest
+
+	err := json.NewDecoder(r.Body).Decode(&user)
+	if user.ID == "" {
 		jsonResponseErr(w, http.StatusBadRequest, "id is required")
 		return
 	}
 
-	id, err := strconv.Atoi(userID)
+	id, err := strconv.Atoi(user.ID)
 	if err != nil {
 		jsonResponseErr(w, http.StatusBadRequest, "invalid id")
 		return
@@ -112,7 +121,7 @@ func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 		jsonResponseErr(w, http.StatusBadRequest, "invalid body rec")
 		return
 	}
-	
+
 	err = h.svc.Update(r.Context(), user)
 	if err != nil {
 		jsonResponseErr(w, http.StatusInternalServerError, "cant update in DB")
@@ -127,15 +136,31 @@ func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) GetList(w http.ResponseWriter, r *http.Request) {
-	users, err := h.svc.GetList(r.Context())
+	var req UserRequest
+
+	err := json.NewDecoder(r.Body).Decode(&req)
 	if err != nil {
-		jsonResponseErr(w, http.StatusInternalServerError, "cant get from DB")
+		jsonResponseErr(w, http.StatusBadRequest, "invalid body rec")
+		return
+	}
+
+	if req.Limit <= 0 {
+		req.Limit = 10
+	}
+
+	if req.Offset < 0 {
+		req.Offset = 0
+	}
+
+	user, err := h.svc.GetList(r.Context(), req.Limit, req.Offset)
+	if err != nil {
+		jsonResponseErr(w, http.StatusInternalServerError, "cant get list from DB")
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(map[string]any{
-		"Users": users,
+		"Users": user,
 	})
 }

@@ -15,6 +15,7 @@ type UserDB struct {
 	Login     string `gorm:"column:login"`
 	Password  string `gorm:"column:password"`
 	Name      string `gorm:"column:name"`
+	role	  string `gorm:"column:role"`
 	Email     string `gorm:"column:email"`
 	CreatedAt int64  `gorm:"column:created_at"`
 	IsActive  bool   `gorm:"column:is_active"`
@@ -30,6 +31,10 @@ func UserStorage(db *gorm.DB) *Storage {
 		db:    db,
 		cache: UserMemoryCache(),
 	}
+}
+
+func (UserDB) TableName() string {
+	return "users"
 }
 
 func (s *Storage) Persist(ctx context.Context, userDB UserDB) (int, error) {
@@ -60,7 +65,7 @@ func (s *Storage) Delete(ctx context.Context, id int) error {
 	return nil
 }
 
-func (s *Storage) FindByID(ctx context.Context, id int) (model.User, error) {
+func (s *Storage) Find(ctx context.Context, id int) (model.User, error) {
 	key := fmt.Sprintf("userID: %d", id)
 
 	if value, ok := s.cache.Get(key); ok {
@@ -97,7 +102,7 @@ func (s *Storage) Update(ctx context.Context, userReq handler.UserRequest) error
 	return nil
 }
 
-func (s *Storage) GetList(ctx context.Context) ([]model.User, error) {
+func (s *Storage) GetList(ctx context.Context, limit, offset int) ([]model.User, error) {
 	key := "users:list"
 
 	if value, ok := s.cache.Get(key); ok {
@@ -107,7 +112,7 @@ func (s *Storage) GetList(ctx context.Context) ([]model.User, error) {
 
 	var usersDB []UserDB
 
-	err := s.db.WithContext(ctx).Find(&usersDB).Error
+	err := s.db.WithContext(ctx).Limit(limit).Offset(offset).Find(&usersDB).Error
 	if err != nil {
 		log.Println(err)
 		return nil, err
