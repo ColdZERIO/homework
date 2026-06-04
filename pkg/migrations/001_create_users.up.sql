@@ -1,0 +1,13 @@
+CREATE TABLE IF NOT EXISTS users (
+    id SERIAL PRIMARY KEY,
+    login VARCHAR(30) NOT NULL UNIQUE,
+    password VARCHAR(256) NOT NULL,
+    name VARCHAR(256) NOT NULL,
+    role VARCHAR(30) NOT NULL DEFAULT 'user',
+    email VARCHAR(256) NOT NULL UNIQUE,
+    created_at BIGINT NOT NULL,
+    is_active BOOLEAN NOT NULL DEFAULT TRUE
+);
+
+CREATE INDEX IF NOT EXISTS login_index ON users(login);
+CREATE INDEX IF NOT EXISTS email_index ON users(email);

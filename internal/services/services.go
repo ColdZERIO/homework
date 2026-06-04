@@ -2,27 +2,48 @@ package services
 
 import (
 	"context"
+	handler "homework/internal/handlers"
 	"homework/internal/model"
+	"homework/internal/storage"
+	"strconv"
+	"time"
 )
 
-type Store interface {
-	CreateUser(ctx context.Context, user model.User) (int, error)
-	DeleteUser(ctx context.Context, id int) error
-	GetUser(ctx context.Context, id int) (model.User, error)
-	UpdateUser(ctx context.Context, user model.User) error
-	GetUsersList(ctx context.Context) ([]model.User, error)
+/*
+- Исправлен интерфейс и название функций
+- Добавлена уникальность полей login и email
+- Добавлены параметры limit и offset для получения списка пользователей
+- Теперь handler обрабатывает JSON запросы и ответы
+- 
+*/
+
+type Storage interface {
+	Persist(ctx context.Context, userDB storage.UserDB) (int, error)
+	Delete(ctx context.Context, id int) error
+	Find(ctx context.Context, id int) (model.User, error)
+	Update(ctx context.Context, userReq handler.UserRequest) error
+	GetList(ctx context.Context, limit, offset int) ([]model.User, error)
 }
 
 type Services struct {
-	store Store
+	store Storage
 }
 
-func NewServices(store Store) *Services {
+func UserServices(store Storage) *Services {
 	return &Services{store: store}
 }
 
-func (s *Services) CreateUser(ctx context.Context, user model.User) (int, error) {
-	id, err := s.store.CreateUser(ctx, user)
+func (s *Services) Persist(ctx context.Context, userReq handler.UserRequest) (int, error) {
+	userDB := storage.UserDB{
+		Login:     userReq.Login,
+		Password:  HashPassword(userReq.Password),
+		Name:      userReq.Name,
+		Email:     userReq.Email,
+		CreatedAt: time.Now().Unix(),
+		IsActive:  true,
+	}
+
+	id, err := s.store.Persist(ctx, userDB)
 	if err != nil {
 		return 0, err
 	}
@@ -30,8 +51,8 @@ func (s *Services) CreateUser(ctx context.Context, user model.User) (int, error)
 	return id, nil
 }
 
-func (s *Services) DeleteUser(ctx context.Context, id int) error {
-	err := s.store.DeleteUser(ctx, id)
+func (s *Services) Delete(ctx context.Context, id int) error {
+	err := s.store.Delete(ctx, id)
 	if err != nil {
 		return err
 	}
@@ -39,8 +60,13 @@ func (s *Services) DeleteUser(ctx context.Context, id int) error {
 	return nil
 }
 
-func (s *Services) GetUser(ctx context.Context, id int) (model.User, error) {
-	user, err := s.store.GetUser(ctx, id)
+func (s *Services) Find(ctx context.Context, userID string) (model.User, error) {
+	id, err := strconv.Atoi(userID)
+	if err != nil {
+		return model.User{}, err
+	}
+
+	user, err := s.store.Find(ctx, id)
 	if err != nil {
 		return model.User{}, err
 	}
@@ -48,8 +74,8 @@ func (s *Services) GetUser(ctx context.Context, id int) (model.User, error) {
 	return user, nil
 }
 
-func (s *Services) UpdateUser(ctx context.Context, user model.User) error {
-	err := s.store.UpdateUser(ctx, user)
+func (s *Services) Update(ctx context.Context, userReq handler.UserRequest) error {
+	err := s.store.Update(ctx, userReq)
 	if err != nil {
 		return err
 	}
@@ -57,8 +83,8 @@ func (s *Services) UpdateUser(ctx context.Context, user model.User) error {
 	return nil
 }
 
-func (s *Services) GetUsersList(ctx context.Context) ([]model.User, error) {
-	users, err := s.store.GetUsersList(ctx)
+func (s *Services) GetList(ctx context.Context, limit, offset int) ([]model.User, error) {
+	users, err := s.store.GetList(ctx, limit, offset)
 	if err != nil {
 		return nil, err
 	}

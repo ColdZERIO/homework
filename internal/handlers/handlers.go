@@ -8,48 +8,50 @@ import (
 	"strconv"
 )
 
-type Service interface {
-	CreateUser(ctx context.Context, user model.User) (int, error)
-	DeleteUser(ctx context.Context, id int) error
-	GetUser(ctx context.Context, id int) (model.User, error)
-	UpdateUser(ctx context.Context, user model.User) error
-	GetUsersList(ctx context.Context) ([]model.User, error)
+// ToUser на уровень выше
+
+type UserRequest struct {
+	ID       string `json:"id"`
+	Login    string `json:"login"`
+	Password string `json:"password"`
+	Name     string `json:"name"`
+	Email    string `json:"email"`
+	Limit    int    `json:"limit"`
+	Offset   int    `json:"offset"`
+}
+
+type UserService interface {
+	Persist(ctx context.Context, userReq UserRequest) (int, error)
+	Delete(ctx context.Context, id int) error
+	Find(ctx context.Context, userID string) (model.User, error)
+	Update(ctx context.Context, userReq UserRequest) error
+	GetList(ctx context.Context, limit, offset int) ([]model.User, error)
 }
 
 type Handler struct {
-	svc Service
+	svc UserService
 }
 
-func NewHandler(svc Service) *Handler {
+func UserHandler(svc UserService) *Handler {
 	return &Handler{svc: svc}
 }
 
 func (h *Handler) Ping(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		jsonResponseErr(w, http.StatusMethodNotAllowed, "method not allowed (GET only)")
-		return
-	}
-
 	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte("pong"))
 }
 
-func (h *Handler) CreateUser(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		jsonResponseErr(w, http.StatusMethodNotAllowed, "method not allowed (POST only)")
-		return
-	}
-
-	var user model.User
+func (h *Handler) Persist(w http.ResponseWriter, r *http.Request) {
+	var user UserRequest
 
 	err := json.NewDecoder(r.Body).Decode(&user)
 	if err != nil {
 		jsonResponseErr(w, http.StatusBadRequest, "invalid body rec")
 		return
 	}
-	
-	id, err := h.svc.CreateUser(r.Context(), user)
+
+	id, err := h.svc.Persist(r.Context(), user)
 	if err != nil {
 		jsonResponseErr(w, http.StatusInternalServerError, "cant add to DB")
 		return
@@ -62,52 +64,43 @@ func (h *Handler) CreateUser(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func (h *Handler) GetUser(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		jsonResponseErr(w, http.StatusMethodNotAllowed, "method not allowed (GET only)")
-		return
-	}
+func (h *Handler) FindByID(w http.ResponseWriter, r *http.Request) {
+	var user UserRequest
 
-	userID := r.URL.Query().Get("id")
-	if userID == "" {
+	err := json.NewDecoder(r.Body).Decode(&user)
+	if user.ID == "" {
 		jsonResponseErr(w, http.StatusBadRequest, "id is required")
 		return
 	}
 
-	id, err := strconv.Atoi(userID)
+	newUser, err := h.svc.Find(r.Context(), user.ID)
 	if err != nil {
-		jsonResponseErr(w, http.StatusBadRequest, "invalid id")
-		return
+		jsonResponseErr(w, http.StatusBadRequest, "can`t fiend user by id")
 	}
-
-	user, err := h.svc.GetUser(r.Context(), id)
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(map[string]any{
-		"User": user,
+		"User": newUser,
 	})
 }
 
-func (h *Handler) DeleteUser(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodDelete {
-		jsonResponseErr(w, http.StatusMethodNotAllowed, "method not allowed (DELETE only)")
-		return
-	}
+func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
+	var user UserRequest
 
-	userID := r.URL.Query().Get("id")
-	if userID == "" {
+	err := json.NewDecoder(r.Body).Decode(&user)
+	if user.ID == "" {
 		jsonResponseErr(w, http.StatusBadRequest, "id is required")
 		return
 	}
 
-	id, err := strconv.Atoi(userID)
+	id, err := strconv.Atoi(user.ID)
 	if err != nil {
 		jsonResponseErr(w, http.StatusBadRequest, "invalid id")
 		return
 	}
 
-	err = h.svc.DeleteUser(r.Context(), id)
+	err = h.svc.Delete(r.Context(), id)
 	if err != nil {
 		jsonResponseErr(w, http.StatusInternalServerError, "cant delete from DB")
 		return
@@ -120,21 +113,16 @@ func (h *Handler) DeleteUser(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func (h *Handler) UpdateUser(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPut {
-		jsonResponseErr(w, http.StatusMethodNotAllowed, "method not allowed (PUT only)")
-		return
-	}
-
-	var user model.User
+func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
+	var user UserRequest
 
 	err := json.NewDecoder(r.Body).Decode(&user)
 	if err != nil {
 		jsonResponseErr(w, http.StatusBadRequest, "invalid body rec")
 		return
 	}
-	
-	err = h.svc.UpdateUser(r.Context(), user)
+
+	err = h.svc.Update(r.Context(), user)
 	if err != nil {
 		jsonResponseErr(w, http.StatusInternalServerError, "cant update in DB")
 		return
@@ -147,21 +135,32 @@ func (h *Handler) UpdateUser(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func (h *Handler) GetUsersList(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		jsonResponseErr(w, http.StatusMethodNotAllowed, "method not allowed (GET only)")
+func (h *Handler) GetList(w http.ResponseWriter, r *http.Request) {
+	var req UserRequest
+
+	err := json.NewDecoder(r.Body).Decode(&req)
+	if err != nil {
+		jsonResponseErr(w, http.StatusBadRequest, "invalid body rec")
 		return
 	}
 
-	users, err := h.svc.GetUsersList(r.Context())
+	if req.Limit <= 0 {
+		req.Limit = 10
+	}
+
+	if req.Offset < 0 {
+		req.Offset = 0
+	}
+
+	user, err := h.svc.GetList(r.Context(), req.Limit, req.Offset)
 	if err != nil {
-		jsonResponseErr(w, http.StatusInternalServerError, "cant get from DB")
+		jsonResponseErr(w, http.StatusInternalServerError, "cant get list from DB")
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(map[string]any{
-		"Users": users,
+		"Users": user,
 	})
 }

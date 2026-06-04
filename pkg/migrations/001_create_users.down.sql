@@ -1,0 +1,3 @@
+DROP INDEX IF EXISTS login_index;
+DROP INDEX IF EXISTS email_index;
+DROP TABLE IF EXISTS users;

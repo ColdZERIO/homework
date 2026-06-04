@@ -4,20 +4,27 @@ import (
 	"context"
 	handler "homework/internal/handlers"
 	"homework/internal/services"
-	"homework/internal/store"
+	"homework/internal/storage"
 	postgres "homework/pkg/db"
 	"log"
 	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
-	"github.com/go-chi/chi"
 	_ "github.com/jackc/pgx/v5/stdlib"
+	"github.com/joho/godotenv"
 )
 
 func main() {
-	router := chi.NewRouter()
+	err := godotenv.Load()
+	if err != nil {
+		log.Println("load env file: %w", err)
+		return
+	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10 * time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
 	db, err := postgres.Init(ctx)
@@ -26,17 +33,47 @@ func main() {
 		return
 	}
 
-	store := store.NewStore(db)
-	srv := services.NewServices(store)
-	hand := handler.NewHandler(srv)
+	err = postgres.MigrationRun()
+	if err != nil {
+		log.Fatal(err)
+		return
+	}
+
+	// перенести стор и сервисы в хэндлер
+	storage := storage.UserStorage(db)
+	service := services.UserServices(storage)
+	// hand -> handler
+	handler := handler.UserHandler(service)
+
+	router := routers(handler)
+
+	httpServer := &http.Server{
+		Addr:    ":8080",
+		Handler: router,
+	}
 
 	log.Println("Server STARTED")
-	router.Get("/ping", hand.Ping)
-	router.Post("/create", hand.CreateUser)
-	router.Get("/get/{id}", hand.GetUser)
-	router.Delete("/delete/{id}", hand.DeleteUser)
-	router.Put("/update", hand.UpdateUser)
-	router.Get("/list", hand.GetUsersList)
 
-	log.Fatal(http.ListenAndServe(":8080", router))
+	if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		log.Fatal(err)
+	}
+
+	ctx, stop := signal.NotifyContext(
+		context.Background(),
+		os.Interrupt,
+		syscall.SIGTERM,
+	)
+	defer stop()
+
+	<-ctx.Done()
+
+	shutDownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	if err := httpServer.Shutdown(shutDownCtx); err != nil {
+		// поменять на Print
+		log.Fatal(err)
+	}
+
+	log.Println("Server STOPPED")
 }
