@@ -8,7 +8,7 @@ import (
 	"strconv"
 )
 
-// ToUser на уровень выше
+// ToUser на уровень выше ??? how?
 
 type UserRequest struct {
 	ID       string `json:"id"`
@@ -64,7 +64,7 @@ func (h *Handler) Persist(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func (h *Handler) FindByID(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) Find(w http.ResponseWriter, r *http.Request) {
 	var user UserRequest
 
 	err := json.NewDecoder(r.Body).Decode(&user)

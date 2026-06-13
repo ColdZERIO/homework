@@ -72,7 +72,7 @@ func main() {
 
 	if err := httpServer.Shutdown(shutDownCtx); err != nil {
 		// поменять на Print
-		log.Fatal(err)
+		log.Println(err)
 	}
 
 	log.Println("Server STOPPED")

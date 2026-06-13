@@ -9,14 +9,6 @@ import (
 	"time"
 )
 
-/*
-- Исправлен интерфейс и название функций
-- Добавлена уникальность полей login и email
-- Добавлены параметры limit и offset для получения списка пользователей
-- Теперь handler обрабатывает JSON запросы и ответы
-- 
-*/
-
 type Storage interface {
 	Persist(ctx context.Context, userDB storage.UserDB) (int, error)
 	Delete(ctx context.Context, id int) error
