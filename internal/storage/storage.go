@@ -15,7 +15,7 @@ type UserDB struct {
 	Login     string `gorm:"column:login"`
 	Password  string `gorm:"column:password"`
 	Name      string `gorm:"column:name"`
-	role	  string `gorm:"column:role"`
+	role      string `gorm:"column:role"`
 	Email     string `gorm:"column:email"`
 	CreatedAt int64  `gorm:"column:created_at"`
 	IsActive  bool   `gorm:"column:is_active"`
@@ -50,11 +50,7 @@ func (s *Storage) Persist(ctx context.Context, userDB UserDB) (int, error) {
 }
 
 func (s *Storage) Delete(ctx context.Context, id int) error {
-	userDB := UserDB{
-		IsActive: false,
-	}
-
-	err := s.db.WithContext(ctx).Model(&UserDB{}).Where("id = ?", userDB.ID).Updates(userDB.IsActive).Error // ???
+	err := s.db.WithContext(ctx).Model(&UserDB{}).Where("id = ?", id).Update("is_active", false).Error
 	if err != nil {
 		log.Println(err)
 		return err
