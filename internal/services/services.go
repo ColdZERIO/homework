@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-type Storage interface {
+type UserStorage interface {
 	Persist(ctx context.Context, userDB storage.UserDB) (int, error)
 	Delete(ctx context.Context, id int) error
 	Find(ctx context.Context, id int) (model.User, error)
@@ -18,10 +18,10 @@ type Storage interface {
 }
 
 type Services struct {
-	store Storage
+	store UserStorage
 }
 
-func UserServices(store Storage) *Services {
+func UserServices(store UserStorage) *Services {
 	return &Services{store: store}
 }
 

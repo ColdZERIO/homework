@@ -42,7 +42,6 @@ func main() {
 	// перенести стор и сервисы в хэндлер
 	storage := storage.UserStorage(db)
 	service := services.UserServices(storage)
-	// hand -> handler
 	handler := handler.UserHandler(service)
 
 	router := routers(handler)
@@ -71,7 +70,6 @@ func main() {
 	defer cancel()
 
 	if err := httpServer.Shutdown(shutDownCtx); err != nil {
-		// поменять на Print
 		log.Println(err)
 	}
 

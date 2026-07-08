@@ -39,12 +39,12 @@ func Init(ctx context.Context) (*gorm.DB, error) {
 }
 
 func MigrationRun() error {
-	envMsg := os.Getenv("DB_MIGRATION_URL")
-	if envMsg == "" {
+	postgresURL := os.Getenv("DB_MIGRATION_URL")
+	if postgresURL == "" {
 		return fmt.Errorf("env file is empty")
 	}
 
-	m, err := migrate.New("file://pkg/migrations", envMsg)
+	m, err := migrate.New("file://pkg/migrations", postgresURL)
 	if err != nil {
 		return fmt.Errorf("create migrate instance: %w", err)
 	}
