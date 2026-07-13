@@ -5,7 +5,7 @@ CREATE TABLE IF NOT EXISTS users (
     name VARCHAR(256) NOT NULL,
     role VARCHAR(30) NOT NULL DEFAULT 'user',
     email VARCHAR(256) NOT NULL UNIQUE,
-    created_at BIGINT NOT NULL,
+    created_at TIMESTAMP NOT NULL,
     is_active BOOLEAN NOT NULL DEFAULT TRUE
 );
 

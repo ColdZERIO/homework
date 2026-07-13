@@ -17,6 +17,18 @@ import (
 	"github.com/joho/godotenv"
 )
 
+// Объединить функцию Persist и Update
+// Найти информацию об id в DB UUID
+// Создать на каждую ручку свою стрктуру
+// Создать 3 роли При создании пользователей
+// Переименовать название интерфейсов (более информативнее)
+
+// ТЕОРИЯ
+// Изучить Статус Коды
+// HTTP и HTTPS как работает
+// Патерны/антипатерны архитектуры, ооп
+// Индексы в DB
+
 func main() {
 	err := godotenv.Load()
 	if err != nil {
@@ -42,7 +54,6 @@ func main() {
 	// перенести стор и сервисы в хэндлер
 	storage := storage.UserStorage(db)
 	service := services.UserServices(storage)
-	// hand -> handler
 	handler := handler.UserHandler(service)
 
 	router := routers(handler)
@@ -55,7 +66,7 @@ func main() {
 	log.Println("Server STARTED")
 
 	if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-		log.Fatal(err)
+		log.Println(err)
 	}
 
 	ctx, stop := signal.NotifyContext(
@@ -71,9 +82,10 @@ func main() {
 	defer cancel()
 
 	if err := httpServer.Shutdown(shutDownCtx); err != nil {
-		// поменять на Print
-		log.Println(err)
+		log.Fatal(err)
 	}
 
 	log.Println("Server STOPPED")
 }
+
+
