@@ -3,30 +3,19 @@ package storage
 import (
 	"context"
 	"fmt"
-	handler "homework/internal/handlers"
-	"homework/internal/model"
+
 	"log"
 
+	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
-
-type UserDB struct {
-	ID        int    `gorm:"column:id;primaryKey"`
-	Login     string `gorm:"column:login"`
-	Password  string `gorm:"column:password"`
-	Name      string `gorm:"column:name"`
-	Role      string `gorm:"column:role"`
-	Email     string `gorm:"column:email"`
-	CreatedAt int64  `gorm:"column:created_at"`
-	IsActive  bool   `gorm:"column:is_active"`
-}
 
 type Storage struct {
 	db    *gorm.DB
 	cache *MemoryCache
 }
 
-func UserStorage(db *gorm.DB) *Storage {
+func NewUserStorage(db *gorm.DB) *Storage {
 	return &Storage{
 		db:    db,
 		cache: UserMemoryCache(),
@@ -37,11 +26,21 @@ func (UserDB) TableName() string {
 	return "users"
 }
 
-func (s *Storage) Persist(ctx context.Context, userDB UserDB) (int, error) {
-	err := s.db.WithContext(ctx).Create(&userDB).Error
+func (s *Storage) Persist(ctx context.Context, userDB UserDB) (uuid.UUID, error) {
+	if userDB.ID == uuid.Nil {
+		err := s.db.WithContext(ctx).Create(&userDB).Error
+		if err != nil {
+			log.Println(err)
+			return uuid.Nil, err
+		}
+
+		return userDB.ID, nil
+	}
+
+	err := s.db.WithContext(ctx).Save(&userDB).Error
 	if err != nil {
 		log.Println(err)
-		return 0, err
+		return uuid.Nil, err
 	}
 
 	s.cache.Clear()
@@ -49,7 +48,7 @@ func (s *Storage) Persist(ctx context.Context, userDB UserDB) (int, error) {
 	return userDB.ID, nil
 }
 
-func (s *Storage) Delete(ctx context.Context, id int) error {
+func (s *Storage) Delete(ctx context.Context, id uuid.UUID) error {
 	err := s.db.WithContext(ctx).Model(&UserDB{}).Where("id = ?", id).Update("is_active", false).Error
 	if err != nil {
 		log.Println(err)
@@ -61,19 +60,20 @@ func (s *Storage) Delete(ctx context.Context, id int) error {
 	return nil
 }
 
-func (s *Storage) Find(ctx context.Context, id int) (model.User, error) {
+func (s *Storage) Find(ctx context.Context, id uuid.UUID) (UserDBResponse, error) {
 	key := fmt.Sprintf("userID: %d", id)
 
 	if value, ok := s.cache.Get(key); ok {
-		user := value.(model.User)
+		user := value.(UserDBResponse)
 		return user, nil
 	}
 
 	var userDB UserDB
+
 	err := s.db.WithContext(ctx).First(&userDB, id).Error
 	if err != nil {
 		log.Println(err)
-		return model.User{}, err
+		return UserDBResponse{}, err
 	}
 
 	s.cache.Set(key, ToUser(userDB))
@@ -81,28 +81,11 @@ func (s *Storage) Find(ctx context.Context, id int) (model.User, error) {
 	return ToUser(userDB), nil
 }
 
-func (s *Storage) Update(ctx context.Context, userReq handler.UserRequest) error {
-	userDB := UserDB{
-		Name:  userReq.Name,
-		Email: userReq.Email,
-	}
-
-	err := s.db.WithContext(ctx).Model(&UserDB{}).Where("id = ?", userDB.ID).Updates(UserDB{Name: userDB.Name, Email: userDB.Email}).Error
-	if err != nil {
-		log.Println(err)
-		return err
-	}
-
-	s.cache.Clear()
-
-	return nil
-}
-
-func (s *Storage) GetList(ctx context.Context, limit, offset int) ([]model.User, error) {
+func (s *Storage) GetList(ctx context.Context, limit, offset int) ([]UserDBResponse, error) {
 	key := "users:list"
 
 	if value, ok := s.cache.Get(key); ok {
-		users := value.([]model.User)
+		users := value.([]UserDBResponse)
 		return users, nil
 	}
 
@@ -119,30 +102,4 @@ func (s *Storage) GetList(ctx context.Context, limit, offset int) ([]model.User,
 	s.cache.Set(key, users)
 
 	return users, nil
-}
-
-func ToUser(userDB UserDB) model.User {
-	return model.User{
-		ID:        userDB.ID,
-		Login:     userDB.Login,
-		Name:      userDB.Name,
-		Email:     userDB.Email,
-		CreatedAt: userDB.CreatedAt,
-	}
-}
-
-func ToUserList(userListDB []UserDB) []model.User {
-	userList := make([]model.User, len(userListDB))
-
-	for _, userDB := range userListDB {
-		userList = append(userList, model.User{
-			ID:        userDB.ID,
-			Login:     userDB.Login,
-			Name:      userDB.Name,
-			Email:     userDB.Email,
-			CreatedAt: userDB.CreatedAt,
-		})
-	}
-
-	return userList
 }

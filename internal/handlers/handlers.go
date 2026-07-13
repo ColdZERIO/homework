@@ -3,47 +3,30 @@ package handler
 import (
 	"context"
 	"encoding/json"
-	"homework/internal/model"
 	"net/http"
 	"strconv"
 )
 
 // ToUser на уровень выше ??? how?
 
-type UserRequest struct {
-	ID       string `json:"id"`
-	Login    string `json:"login"`
-	Password string `json:"password"`
-	Name     string `json:"name"`
-	Email    string `json:"email"`
-	Limit    int    `json:"limit"`
-	Offset   int    `json:"offset"`
-}
-
 type UserService interface {
-	Persist(ctx context.Context, userReq UserRequest) (int, error)
+	Persist(ctx context.Context, userReq PersistUserRequest) (string, error)
 	Delete(ctx context.Context, id int) error
-	Find(ctx context.Context, userID string) (model.User, error)
-	Update(ctx context.Context, userReq UserRequest) error
-	GetList(ctx context.Context, limit, offset int) ([]model.User, error)
+	Find(ctx context.Context, userID string) (UserResponse, error)
+	Update(ctx context.Context, userReq PersistUserRequest) error
+	GetList(ctx context.Context, limit, offset int) (UserListResponse, error)
 }
 
 type Handler struct {
 	svc UserService
 }
 
-func UserHandler(svc UserService) *Handler {
+func NewUserHandler(svc UserService) *Handler {
 	return &Handler{svc: svc}
 }
 
-func (h *Handler) Ping(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
-	w.WriteHeader(http.StatusOK)
-	w.Write([]byte("pong"))
-}
-
 func (h *Handler) Persist(w http.ResponseWriter, r *http.Request) {
-	var user UserRequest
+	var user PersistUserRequest
 
 	err := json.NewDecoder(r.Body).Decode(&user)
 	if err != nil {
@@ -65,7 +48,7 @@ func (h *Handler) Persist(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) Find(w http.ResponseWriter, r *http.Request) {
-	var user UserRequest
+	var user UserResponse
 
 	err := json.NewDecoder(r.Body).Decode(&user)
 	if user.ID == "" {
@@ -86,7 +69,7 @@ func (h *Handler) Find(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
-	var user UserRequest
+	var user UserResponse
 
 	err := json.NewDecoder(r.Body).Decode(&user)
 	if user.ID == "" {
@@ -114,7 +97,7 @@ func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
-	var user UserRequest
+	var user PersistUserRequest
 
 	err := json.NewDecoder(r.Body).Decode(&user)
 	if err != nil {
@@ -122,7 +105,7 @@ func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = h.svc.Update(r.Context(), user)
+	_, err = h.svc.Persist(r.Context(), user)
 	if err != nil {
 		jsonResponseErr(w, http.StatusInternalServerError, "cant update in DB")
 		return
@@ -136,7 +119,7 @@ func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) GetList(w http.ResponseWriter, r *http.Request) {
-	var req UserRequest
+	var req UserListResponse
 
 	err := json.NewDecoder(r.Body).Decode(&req)
 	if err != nil {

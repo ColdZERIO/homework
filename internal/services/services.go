@@ -3,48 +3,61 @@ package services
 import (
 	"context"
 	handler "homework/internal/handlers"
-	"homework/internal/model"
 	"homework/internal/storage"
-	"strconv"
+	"log"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 type UserStorage interface {
-	Persist(ctx context.Context, userDB storage.UserDB) (int, error)
-	Delete(ctx context.Context, id int) error
-	Find(ctx context.Context, id int) (model.User, error)
-	Update(ctx context.Context, userReq handler.UserRequest) error
-	GetList(ctx context.Context, limit, offset int) ([]model.User, error)
+	Persist(ctx context.Context, userDB storage.UserDB) (uuid.UUID, error)
+	Delete(ctx context.Context, id uuid.UUID) error
+	Find(ctx context.Context, id uuid.UUID) (storage.UserDBResponse, error)
+	GetList(ctx context.Context, limit, offset int) ([]storage.UserDBResponse, error)
 }
 
-type Services struct {
+type UserServices struct {
 	store UserStorage
 }
 
-func UserServices(store UserStorage) *Services {
-	return &Services{store: store}
+func NewUserServices(store UserStorage) *UserServices {
+	return &UserServices{store: store}
 }
 
-func (s *Services) Persist(ctx context.Context, userReq handler.UserRequest) (int, error) {
+func (s *UserServices) Persist(ctx context.Context, userReq handler.PersistUserRequest) (string, error) {
 	userDB := storage.UserDB{
-		Login:     userReq.Login,
-		Password:  HashPassword(userReq.Password),
-		Name:      userReq.Name,
-		Email:     userReq.Email,
-		CreatedAt: time.Now().Unix(),
-		IsActive:  true,
+		Login:        userReq.Login,
+		PasswordHash: HashPassword(userReq.Password),
+		Name:         userReq.Name,
+		Email:        userReq.Email,
+		CreatedAt:    time.Now().Unix(),
+		IsActive:     true,
 	}
 
-	id, err := s.store.Persist(ctx, userDB)
+	id, err := uuid.Parse(userReq.ID)
 	if err != nil {
-		return 0, err
+		log.Println(err)
+		return "", err
+	}
+	userDB.ID = id
+
+	id, err = s.store.Persist(ctx, userDB)
+	if err != nil {
+		return "", err
 	}
 
-	return id, nil
+	return id.String(), nil
 }
 
-func (s *Services) Delete(ctx context.Context, id int) error {
-	err := s.store.Delete(ctx, id)
+func (s *UserServices) Delete(ctx context.Context, id string) error {
+	uid, err := uuid.Parse(id)
+	if err != nil {
+		log.Println(err)
+		return err
+	}
+
+	err = s.store.Delete(ctx, uid)
 	if err != nil {
 		return err
 	}
@@ -52,30 +65,21 @@ func (s *Services) Delete(ctx context.Context, id int) error {
 	return nil
 }
 
-func (s *Services) Find(ctx context.Context, userID string) (model.User, error) {
-	id, err := strconv.Atoi(userID)
+func (s *UserServices) Find(ctx context.Context, userID string) (handler.UserResponse, error) {
+	id, err := uuid.Parse(userID)
 	if err != nil {
-		return model.User{}, err
+		return handler.UserResponse{}, err
 	}
 
 	user, err := s.store.Find(ctx, id)
 	if err != nil {
-		return model.User{}, err
+		return handler.UserResponse{}, err
 	}
 
-	return user, nil
+	return ToUserResponse(user), nil
 }
 
-func (s *Services) Update(ctx context.Context, userReq handler.UserRequest) error {
-	err := s.store.Update(ctx, userReq)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (s *Services) GetList(ctx context.Context, limit, offset int) ([]model.User, error) {
+func (s *UserServices) GetList(ctx context.Context, limit, offset int) ([]handler.UserListRequest, error) {
 	users, err := s.store.GetList(ctx, limit, offset)
 	if err != nil {
 		return nil, err

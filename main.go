@@ -40,9 +40,9 @@ func main() {
 	}
 
 	// перенести стор и сервисы в хэндлер
-	storage := storage.UserStorage(db)
-	service := services.UserServices(storage)
-	handler := handler.UserHandler(service)
+	storage := storage.NewUserStorage(db)
+	service := services.NewUserServices(storage)
+	handler := handler.NewUserHandler(service)
 
 	router := routers(handler)
 
