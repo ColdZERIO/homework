@@ -9,10 +9,11 @@ type PersistUserRequest struct {
 }
 
 type UserResponse struct {
+	ID        string `json:"id"`
 	Login     string `json:"login"`
 	Name      string `json:"name"`
 	Email     string `json:"email"`
-	CreatedAt int64 `json:"created_at"`
+	CreatedAt int64  `json:"created_at"`
 }
 
 type UserListRequest struct {

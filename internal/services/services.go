@@ -2,10 +2,9 @@ package services
 
 import (
 	"context"
-	handler "homework/internal/handlers"
+	"homework/internal/domain"
 	"homework/internal/storage"
 	"log"
-	"time"
 
 	"github.com/google/uuid"
 )
@@ -13,8 +12,8 @@ import (
 type UserStorage interface {
 	Persist(ctx context.Context, userDB storage.UserDB) (uuid.UUID, error)
 	Delete(ctx context.Context, id uuid.UUID) error
-	Find(ctx context.Context, id uuid.UUID) (storage.UserDBResponse, error)
-	GetList(ctx context.Context, limit, offset int) ([]storage.UserDBResponse, error)
+	Find(ctx context.Context, id uuid.UUID) (domain.UserOutput, error)
+	GetList(ctx context.Context, limit, offset int) ([]domain.UserOutput, error)
 }
 
 type UserServices struct {
@@ -25,13 +24,12 @@ func NewUserServices(store UserStorage) *UserServices {
 	return &UserServices{store: store}
 }
 
-func (s *UserServices) Persist(ctx context.Context, userReq handler.PersistUserRequest) (string, error) {
+func (s *UserServices) Persist(ctx context.Context, userReq CreateUserInput) (string, error) {
 	userDB := storage.UserDB{
 		Login:        userReq.Login,
 		PasswordHash: HashPassword(userReq.Password),
 		Name:         userReq.Name,
 		Email:        userReq.Email,
-		CreatedAt:    time.Now().Unix(),
 		IsActive:     true,
 	}
 
@@ -65,25 +63,25 @@ func (s *UserServices) Delete(ctx context.Context, id string) error {
 	return nil
 }
 
-func (s *UserServices) Find(ctx context.Context, userID string) (handler.UserResponse, error) {
+func (s *UserServices) Find(ctx context.Context, userID string) (domain.UserOutput, error) {
 	id, err := uuid.Parse(userID)
 	if err != nil {
-		return handler.UserResponse{}, err
+		return domain.UserOutput{}, err
 	}
 
 	user, err := s.store.Find(ctx, id)
 	if err != nil {
-		return handler.UserResponse{}, err
+		return domain.UserOutput{}, err
 	}
 
 	return ToUserResponse(user), nil
 }
 
-func (s *UserServices) GetList(ctx context.Context, limit, offset int) ([]handler.UserListRequest, error) {
+func (s *UserServices) GetList(ctx context.Context, limit, offset int) ([]handler.UserResponse, error) {
 	users, err := s.store.GetList(ctx, limit, offset)
 	if err != nil {
 		return nil, err
 	}
 
-	return users, nil
+	return ToUserListResponse(users), nil
 }

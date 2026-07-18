@@ -1,12 +1,13 @@
 package services
 
 import (
-	handler "homework/internal/handlers"
+	"homework/internal/domain"
 	"homework/internal/storage"
 )
 
-func ToUserResponse(userDB storage.UserDBResponse) handler.UserResponse {
-	return handler.UserResponse{
+func ToUserResponse(userDB CreateUserInput) domain.UserOutput {
+	return domain.UserOutput{
+		ID:        userDB.ID,
 		Login:     userDB.Login,
 		Name:      userDB.Name,
 		Email:     userDB.Email,
@@ -14,17 +15,20 @@ func ToUserResponse(userDB storage.UserDBResponse) handler.UserResponse {
 	}
 }
 
-func ToUserListResponse(userDB []storage.UserDBResponse) []handler.UserResponse {
-	userList := make([]handler.UserResponse, len(userDB))
+func ToUserListResponse(userDB GetUserList) storage.UserDBListResponse {
+	userList := make([]storage.UserDBResponse, len(userDB.Users))
 
-	for _, value := range userDB {
-		userList = append(userList, handler.UserResponse{
-			Login:     value.Login,
-			Name:      value.Name,
-			Email:     value.Email,
-			CreatedAt: value.CreatedAt,
+	for _, value := range userDB.Users {
+		userList = append(userList, storage.UserDBResponse{
+			Login: value.Login,
+			Name:  value.Name,
+			Email: value.Email,
 		})
 	}
 
-	return userList
+	return storage.UserDBListResponse{
+		Users:  userList,
+		Limit:  userDB.Limit,
+		Offset: userDB.Offset,
+	}
 }

@@ -3,6 +3,7 @@ package storage
 import (
 	"context"
 	"fmt"
+	"homework/internal/domain"
 
 	"log"
 
@@ -60,11 +61,11 @@ func (s *Storage) Delete(ctx context.Context, id uuid.UUID) error {
 	return nil
 }
 
-func (s *Storage) Find(ctx context.Context, id uuid.UUID) (UserDBResponse, error) {
+func (s *Storage) Find(ctx context.Context, id uuid.UUID) (domain.UserOutput, error) {
 	key := fmt.Sprintf("userID: %d", id)
 
 	if value, ok := s.cache.Get(key); ok {
-		user := value.(UserDBResponse)
+		user := value.(domain.UserOutput)
 		return user, nil
 	}
 
@@ -73,7 +74,7 @@ func (s *Storage) Find(ctx context.Context, id uuid.UUID) (UserDBResponse, error
 	err := s.db.WithContext(ctx).First(&userDB, id).Error
 	if err != nil {
 		log.Println(err)
-		return UserDBResponse{}, err
+		return domain.UserOutput{}, err
 	}
 
 	s.cache.Set(key, ToUser(userDB))
@@ -81,11 +82,11 @@ func (s *Storage) Find(ctx context.Context, id uuid.UUID) (UserDBResponse, error
 	return ToUser(userDB), nil
 }
 
-func (s *Storage) GetList(ctx context.Context, limit, offset int) ([]UserDBResponse, error) {
+func (s *Storage) GetList(ctx context.Context, limit, offset int) ([]domain.UserOutput, error) {
 	key := "users:list"
 
 	if value, ok := s.cache.Get(key); ok {
-		users := value.([]UserDBResponse)
+		users := value.([]domain.UserOutput)
 		return users, nil
 	}
 
@@ -97,9 +98,7 @@ func (s *Storage) GetList(ctx context.Context, limit, offset int) ([]UserDBRespo
 		return nil, err
 	}
 
-	users := ToUserList(usersDB)
+	s.cache.Set(key, usersDB)
 
-	s.cache.Set(key, users)
-
-	return users, nil
+	return ToUserList(usersDB), nil
 }

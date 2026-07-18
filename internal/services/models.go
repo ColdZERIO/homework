@@ -15,6 +15,7 @@ type User struct {
 }
 
 type CreateUserInput struct {
+	ID       string
 	Login    string
 	Password string
 	Name     string
@@ -26,4 +27,10 @@ type GetUser struct {
 	Login string
 	Name  string
 	Email string
+}
+
+type GetUserList struct {
+	Users  []GetUser
+	Limit  int
+	Offset int
 }

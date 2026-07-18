@@ -1,8 +1,9 @@
 package storage
 
-func ToUser(userDB UserDB) UserDBResponse {
-	return UserDBResponse{
-		ID:        userDB.ID,
+import "homework/internal/domain"
+
+func ToUser(userDB UserDB) domain.UserOutput {
+	return domain.UserOutput{
 		Login:     userDB.Login,
 		Name:      userDB.Name,
 		Email:     userDB.Email,
@@ -10,16 +11,16 @@ func ToUser(userDB UserDB) UserDBResponse {
 	}
 }
 
-func ToUserList(userListDB []UserDB) []UserDBResponse {
-	userList := make([]UserDBResponse, len(userListDB))
+func ToUserList(userListDB []UserDB) []domain.UserOutput {
+	userList := make([]domain.UserOutput, len(userListDB))
 
-	for _, userDB := range userListDB {
-		userList = append(userList, UserDBResponse{
-			ID:        userDB.ID,
-			Login:     userDB.Login,
-			Name:      userDB.Name,
-			Email:     userDB.Email,
-			CreatedAt: userDB.CreatedAt,
+	for _, user := range userListDB {
+		userList = append(userList, domain.UserOutput{
+			ID:        user.ID,
+			Login:     user.Login,
+			Name:      user.Name,
+			Email:     user.Email,
+			CreatedAt: user.CreatedAt,
 		})
 	}
 

@@ -14,7 +14,7 @@ type UserService interface {
 	Delete(ctx context.Context, id int) error
 	Find(ctx context.Context, userID string) (UserResponse, error)
 	Update(ctx context.Context, userReq PersistUserRequest) error
-	GetList(ctx context.Context, limit, offset int) (UserListResponse, error)
+	GetList(ctx context.Context, limit, offset int) ([]UserResponse, error)
 }
 
 type Handler struct {
@@ -51,12 +51,17 @@ func (h *Handler) Find(w http.ResponseWriter, r *http.Request) {
 	var user UserResponse
 
 	err := json.NewDecoder(r.Body).Decode(&user)
+	if err != nil {
+		jsonResponseErr(w, http.StatusBadRequest, "invalid body rec")
+		return
+	}
+	
 	if user.ID == "" {
 		jsonResponseErr(w, http.StatusBadRequest, "id is required")
 		return
 	}
 
-	newUser, err := h.svc.Find(r.Context(), user.ID)
+	searchUser, err := h.svc.Find(r.Context(), user.ID)
 	if err != nil {
 		jsonResponseErr(w, http.StatusBadRequest, "can`t fiend user by id")
 	}
@@ -64,7 +69,7 @@ func (h *Handler) Find(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(map[string]any{
-		"User": newUser,
+		"User": searchUser,
 	})
 }
 
@@ -119,7 +124,7 @@ func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) GetList(w http.ResponseWriter, r *http.Request) {
-	var req UserListResponse
+	var req UserListRequest
 
 	err := json.NewDecoder(r.Body).Decode(&req)
 	if err != nil {
