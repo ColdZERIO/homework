@@ -17,6 +17,11 @@ import (
 	"github.com/joho/godotenv"
 )
 
+// hanlders (папка req/res)
+// переименовать название Persist -> Create
+// Переделать все
+// Доделать Кеш
+
 func main() {
 	err := godotenv.Load()
 	if err != nil {

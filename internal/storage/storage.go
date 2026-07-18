@@ -4,12 +4,20 @@ import (
 	"context"
 	"fmt"
 	"homework/internal/domain"
+	"homework/internal/storage"
 
 	"log"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
+
+type UserStorage interface {
+	Persist(ctx context.Context, userDB storage.UserModel) (UserModel, error)
+	Delete(ctx context.Context, id uuid.UUID) error
+	Find(ctx context.Context, id uuid.UUID) (storage.UserModel, error)
+	GetList(ctx context.Context, limit, offset int) ([]domain.UserOutput, error)
+}
 
 type Storage struct {
 	db    *gorm.DB
@@ -23,30 +31,20 @@ func NewUserStorage(db *gorm.DB) *Storage {
 	}
 }
 
-func (UserDB) TableName() string {
+func (UserModel) TableName() string {
 	return "users"
 }
 
-func (s *Storage) Persist(ctx context.Context, userDB UserDB) (uuid.UUID, error) {
-	if userDB.ID == uuid.Nil {
-		err := s.db.WithContext(ctx).Create(&userDB).Error
-		if err != nil {
-			log.Println(err)
-			return uuid.Nil, err
-		}
-
-		return userDB.ID, nil
-	}
-
-	err := s.db.WithContext(ctx).Save(&userDB).Error
+func (s *Storage) Persist(ctx context.Context, userModel UserModel) (UserModel, error) {
+	err := s.db.WithContext(ctx).Save(&userModel).Error
 	if err != nil {
 		log.Println(err)
-		return uuid.Nil, err
+		return UserModel{}, err
 	}
 
 	s.cache.Clear()
 
-	return userDB.ID, nil
+	return userModel, nil
 }
 
 func (s *Storage) Delete(ctx context.Context, id uuid.UUID) error {
@@ -61,25 +59,25 @@ func (s *Storage) Delete(ctx context.Context, id uuid.UUID) error {
 	return nil
 }
 
-func (s *Storage) Find(ctx context.Context, id uuid.UUID) (domain.UserOutput, error) {
+func (s *Storage) Find(ctx context.Context, id uuid.UUID) (UserModel, error) {
+	var userModel UserModel
+
 	key := fmt.Sprintf("userID: %d", id)
 
 	if value, ok := s.cache.Get(key); ok {
-		user := value.(domain.UserOutput)
+		user := value.(UserModel)
 		return user, nil
 	}
 
-	var userDB UserDB
-
-	err := s.db.WithContext(ctx).First(&userDB, id).Error
+	err := s.db.WithContext(ctx).First(&userModel, id).Error
 	if err != nil {
 		log.Println(err)
-		return domain.UserOutput{}, err
+		return userModel, err
 	}
 
-	s.cache.Set(key, ToUser(userDB))
+	s.cache.Set(key, userModel)
 
-	return ToUser(userDB), nil
+	return userModel, nil
 }
 
 func (s *Storage) GetList(ctx context.Context, limit, offset int) ([]domain.UserOutput, error) {

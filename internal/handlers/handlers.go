@@ -1,40 +1,32 @@
 package handler
 
 import (
-	"context"
 	"encoding/json"
+	"homework/internal/services"
 	"net/http"
 	"strconv"
 )
 
 // ToUser на уровень выше ??? how?
 
-type UserService interface {
-	Persist(ctx context.Context, userReq PersistUserRequest) (string, error)
-	Delete(ctx context.Context, id int) error
-	Find(ctx context.Context, userID string) (UserResponse, error)
-	Update(ctx context.Context, userReq PersistUserRequest) error
-	GetList(ctx context.Context, limit, offset int) ([]UserResponse, error)
-}
-
 type Handler struct {
-	svc UserService
+	svc services.UserService
 }
 
-func NewUserHandler(svc UserService) *Handler {
+func NewUserHandler(svc services.UserService) *Handler {
 	return &Handler{svc: svc}
 }
 
 func (h *Handler) Persist(w http.ResponseWriter, r *http.Request) {
-	var user PersistUserRequest
+	var userReq PersistUserRequest
 
-	err := json.NewDecoder(r.Body).Decode(&user)
+	err := json.NewDecoder(r.Body).Decode(&userReq)
 	if err != nil {
 		jsonResponseErr(w, http.StatusBadRequest, "invalid body rec")
 		return
 	}
 
-	id, err := h.svc.Persist(r.Context(), user)
+	user, err := h.svc.Persist(r.Context(), userReq.ID, userReq.Login, userReq.Password, userReq.Name, userReq.Email)
 	if err != nil {
 		jsonResponseErr(w, http.StatusInternalServerError, "cant add to DB")
 		return
@@ -42,20 +34,23 @@ func (h *Handler) Persist(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]any{
-		"UserID": id,
+	json.NewEncoder(w).Encode(PersistUserResponse{
+		ID:    user.ID,
+		Login: user.Login,
+		Name:  user.Name,
+		Email: user.Email,
 	})
 }
 
 func (h *Handler) Find(w http.ResponseWriter, r *http.Request) {
-	var user UserResponse
+	var user FindUserRequest
 
 	err := json.NewDecoder(r.Body).Decode(&user)
 	if err != nil {
 		jsonResponseErr(w, http.StatusBadRequest, "invalid body rec")
 		return
 	}
-	
+
 	if user.ID == "" {
 		jsonResponseErr(w, http.StatusBadRequest, "id is required")
 		return
