@@ -1,20 +1,21 @@
 package main
 
 import (
+	auth "homework/internal/auth"
 	handler "homework/internal/handlers"
 
 	"github.com/go-chi/chi"
 )
 
-func routers(hand *handler.Handler) *chi.Mux {
-	rout := chi.NewRouter()
+func routers(handler *handler.UserHandler) *chi.Mux {
+	router := chi.NewRouter()
 
-	rout.Get("/ping", hand.Ping)
-	rout.Post("/persist", hand.Persist)
-	rout.Get("/get", hand.Find)
-	rout.Delete("/delete", hand.Delete)
-	rout.Put("/update", hand.Update)
-	rout.Get("/list", hand.GetList)
+	router.Post("/create", handler.Create)
+	router.Post("/login", handler.Login)
+	router.Get("/get", auth.JWTMiddleware(handler.Find))
+	router.Delete("/delete", auth.JWTMiddleware(handler.Delete))
+	router.Put("/update", auth.JWTMiddleware(handler.Update))
+	router.Get("/list", auth.JWTMiddleware(handler.FindUserList))
 
-	return rout
+	return router
 }

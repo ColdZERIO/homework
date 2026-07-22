@@ -3,8 +3,6 @@ package storage
 import (
 	"context"
 	"fmt"
-	"homework/internal/domain"
-	"homework/internal/storage"
 
 	"log"
 
@@ -13,10 +11,11 @@ import (
 )
 
 type UserStorage interface {
-	Persist(ctx context.Context, userDB storage.UserModel) (UserModel, error)
-	Delete(ctx context.Context, id uuid.UUID) error
-	Find(ctx context.Context, id uuid.UUID) (storage.UserModel, error)
-	GetList(ctx context.Context, limit, offset int) ([]domain.UserOutput, error)
+	Persist(ctx context.Context, userDB UserModel) (UserModel, error)
+	Delete(ctx context.Context, id string) (UserModel, error)
+	Find(ctx context.Context, id string) (UserModel, error)
+	GetList(ctx context.Context, limit, offset int, where, orderby string) ([]UserModel, error)
+	AuthUser(ctx context.Context, login string) (UserModel, error)
 }
 
 type Storage struct {
@@ -36,7 +35,16 @@ func (UserModel) TableName() string {
 }
 
 func (s *Storage) Persist(ctx context.Context, userModel UserModel) (UserModel, error) {
-	err := s.db.WithContext(ctx).Save(&userModel).Error
+	if userModel.ID == "" {
+		userModel.ID = uuid.New().String()
+		err := s.db.WithContext(ctx).Create(&userModel).Error
+		if err != nil {
+			log.Println(err)
+			return UserModel{}, err
+		}
+	}
+
+	err := s.db.WithContext(ctx).Model(&userModel).Where("id = ?", userModel.ID).Updates(userModel).Error
 	if err != nil {
 		log.Println(err)
 		return UserModel{}, err
@@ -47,22 +55,24 @@ func (s *Storage) Persist(ctx context.Context, userModel UserModel) (UserModel, 
 	return userModel, nil
 }
 
-func (s *Storage) Delete(ctx context.Context, id uuid.UUID) error {
-	err := s.db.WithContext(ctx).Model(&UserDB{}).Where("id = ?", id).Update("is_active", false).Error
+func (s *Storage) Delete(ctx context.Context, id string) (UserModel, error) {
+	var userModel UserModel
+
+	err := s.db.WithContext(ctx).Model(&userModel).Where("id = ?", id).Update("is_active", false).Error
 	if err != nil {
 		log.Println(err)
-		return err
+		return UserModel{}, err
 	}
 
 	s.cache.Clear()
 
-	return nil
+	return userModel, nil
 }
 
-func (s *Storage) Find(ctx context.Context, id uuid.UUID) (UserModel, error) {
+func (s *Storage) Find(ctx context.Context, id string) (UserModel, error) {
 	var userModel UserModel
 
-	key := fmt.Sprintf("userID: %d", id)
+	key := fmt.Sprintf("userID: %s", id)
 
 	if value, ok := s.cache.Get(key); ok {
 		user := value.(UserModel)
@@ -80,23 +90,44 @@ func (s *Storage) Find(ctx context.Context, id uuid.UUID) (UserModel, error) {
 	return userModel, nil
 }
 
-func (s *Storage) GetList(ctx context.Context, limit, offset int) ([]domain.UserOutput, error) {
+func (s *Storage) AuthUser(ctx context.Context, login string) (UserModel, error) {
+	var userModel UserModel
+
+	key := fmt.Sprintf("login: %d", login)
+
+	if value, ok := s.cache.Get(key); ok {
+		user := value.(UserModel)
+		return user, nil
+	}
+
+	err := s.db.WithContext(ctx).First(&userModel, login).Error
+	if err != nil {
+		log.Println(err)
+		return userModel, err
+	}
+
+	s.cache.Set(key, userModel)
+
+	return userModel, nil
+}
+
+func (s *Storage) GetList(ctx context.Context, limit, offset int, where, orderby string) ([]UserModel, error) {
 	key := "users:list"
 
 	if value, ok := s.cache.Get(key); ok {
-		users := value.([]domain.UserOutput)
+		users := value.([]UserModel)
 		return users, nil
 	}
 
-	var usersDB []UserDB
+	var userModel []UserModel
 
-	err := s.db.WithContext(ctx).Limit(limit).Offset(offset).Find(&usersDB).Error
+	err := s.db.WithContext(ctx).Limit(limit).Offset(offset).Where(where).Order(orderby).Find(&userModel).Error
 	if err != nil {
 		log.Println(err)
 		return nil, err
 	}
 
-	s.cache.Set(key, usersDB)
+	s.cache.Set(key, userModel)
 
-	return ToUserList(usersDB), nil
+	return userModel, nil
 }

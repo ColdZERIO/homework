@@ -4,26 +4,24 @@ import (
 	"context"
 	"homework/internal/storage"
 	"log"
-
-	"github.com/google/uuid"
 )
 
 // Переписать структуры на параметры
 
 type UserService interface {
 	Persist(ctx context.Context, ID, login, password, name, email string) (storage.UserModel, error)
-	Delete(ctx context.Context, id int) error
+	Delete(ctx context.Context, userID string) (storage.UserModel, error)
 	Find(ctx context.Context, userID string) (storage.UserModel, error)
-	Update(ctx context.Context, userReq PersistUserRequest) error
-	GetList(ctx context.Context, limit, offset int) ([]UserResponse, error)
+	GetList(ctx context.Context, limit, offset int, where, orderby string) ([]storage.UserModel, error)
+	CheckPassword(ctx context.Context, login, password string) (storage.UserModel, error)
 }
 
 type UserServices struct {
 	storage storage.UserStorage
 }
 
-func NewUserServices(store storage.UserStorage) *UserServices {
-	return &UserServices{store: store}
+func NewUserServices(storage storage.UserStorage) *UserServices {
+	return &UserServices{storage: storage}
 }
 
 func (s *UserServices) Persist(ctx context.Context, ID, login, password, name, email string) (storage.UserModel, error) {
@@ -49,28 +47,33 @@ func (s *UserServices) Persist(ctx context.Context, ID, login, password, name, e
 	return user, nil
 }
 
-func (s *UserServices) Delete(ctx context.Context, id string) error {
-	uid, err := uuid.Parse(id)
+func (s *UserServices) CheckPassword(ctx context.Context, login, password string) (storage.UserModel, error) {
+	user, err := s.storage.AuthUser(ctx, login)
 	if err != nil {
 		log.Println(err)
-		return err
+		return storage.UserModel{}, err
 	}
 
-	err = s.store.Delete(ctx, uid)
+	err = ValidationPassword(password, user.PasswordHash)
 	if err != nil {
-		return err
+		log.Println(err)
+		return storage.UserModel{}, err
 	}
 
-	return nil
+	return user, nil
 }
 
-func (s *UserServices) Find(ctx context.Context, userID string) (storage.UserModel, error) {
-	id, err := uuid.Parse(userID)
+func (s *UserServices) Delete(ctx context.Context, id string) (storage.UserModel, error) {
+	userDeleted, err := s.storage.Delete(ctx, id)
 	if err != nil {
 		return storage.UserModel{}, err
 	}
 
-	user, err := s.store.Find(ctx, id)
+	return userDeleted, nil
+}
+
+func (s *UserServices) Find(ctx context.Context, userID string) (storage.UserModel, error) {
+	user, err := s.storage.Find(ctx, userID)
 	if err != nil {
 		return storage.UserModel{}, err
 	}
@@ -78,11 +81,11 @@ func (s *UserServices) Find(ctx context.Context, userID string) (storage.UserMod
 	return user, nil
 }
 
-func (s *UserServices) GetList(ctx context.Context, limit, offset int) ([]storage.UserModel, error) {
-	users, err := s.store.GetList(ctx, limit, offset)
+func (s *UserServices) GetList(ctx context.Context, limit, offset int, where, orderby string) ([]storage.UserModel, error) {
+	users, err := s.storage.GetList(ctx, limit, offset, where, orderby)
 	if err != nil {
 		return nil, err
 	}
 
-	return ToUserListResponse(users), nil
+	return users, nil
 }
