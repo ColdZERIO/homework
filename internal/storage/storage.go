@@ -50,7 +50,8 @@ func (s *Storage) Persist(ctx context.Context, userModel UserModel) (UserModel, 
 		return UserModel{}, err
 	}
 
-	s.cache.Clear()
+	s.cache.Set(userIDkey(userModel.ID), userModel)
+	s.cache.Set(userLoginKey(userModel.Login), userModel)
 
 	return userModel, nil
 }
@@ -64,7 +65,7 @@ func (s *Storage) Delete(ctx context.Context, id string) (UserModel, error) {
 		return UserModel{}, err
 	}
 
-	s.cache.Clear()
+	s.cache.Delete(userIDkey(userModel.ID))
 
 	return userModel, nil
 }
@@ -93,7 +94,7 @@ func (s *Storage) Find(ctx context.Context, id string) (UserModel, error) {
 func (s *Storage) AuthUser(ctx context.Context, login string) (UserModel, error) {
 	var userModel UserModel
 
-	key := fmt.Sprintf("login: %d", login)
+	key := fmt.Sprintf("login: %s", login)
 
 	if value, ok := s.cache.Get(key); ok {
 		user := value.(UserModel)
@@ -112,7 +113,7 @@ func (s *Storage) AuthUser(ctx context.Context, login string) (UserModel, error)
 }
 
 func (s *Storage) GetList(ctx context.Context, limit, offset int, where, orderby string) ([]UserModel, error) {
-	key := "users:list"
+	key := userListKey(limit, offset, where, orderby)
 
 	if value, ok := s.cache.Get(key); ok {
 		users := value.([]UserModel)

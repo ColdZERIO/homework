@@ -25,10 +25,6 @@ func NewUserServices(storage storage.UserStorage) *UserServices {
 }
 
 func (s *UserServices) Persist(ctx context.Context, ID, login, password, name, email string) (storage.UserModel, error) {
-	if ID == "" {
-		// Сгенерировать UUID
-	}
-
 	userModel := storage.UserModel{
 		ID:           ID,
 		Login:        login,

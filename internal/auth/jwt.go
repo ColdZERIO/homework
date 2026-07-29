@@ -1,13 +1,13 @@
 package auth
 
 import (
+	"errors"
+	"fmt"
 	"os"
 	"time"
 
 	"github.com/golang-jwt/jwt/v4"
 )
-
-var jwtSecret = []byte(os.Getenv("SECRET_KEY"))
 
 type Claims struct {
 	UserID string `json:"user_id"`
@@ -15,6 +15,11 @@ type Claims struct {
 }
 
 func GenerateJWT(userID string) (string, error) {
+	jwtSecret := []byte(os.Getenv("SECRET_KEY"))
+	if len(jwtSecret) == 0 {
+		return "", errors.New("SECRET_KEY is empty")
+	}
+
 	claims := &Claims{
 		UserID: userID,
 		RegisteredClaims: jwt.RegisteredClaims{
@@ -29,9 +34,22 @@ func GenerateJWT(userID string) (string, error) {
 }
 
 func ParseJWT(tokenString string) (*Claims, error) {
-	token, err := jwt.ParseWithClaims(tokenString, &Claims{}, func(token *jwt.Token) (any, error) {
-		return jwtSecret, nil
-	})
+	jwtSecret := []byte(os.Getenv("SECRET_KEY"))
+	if len(jwtSecret) == 0 {
+		return nil, errors.New("SECRET_KEY is empty")
+	}
+
+	token, err := jwt.ParseWithClaims(
+		tokenString,
+		&Claims{},
+		func(token *jwt.Token) (any, error) {
+			if token.Method != jwt.SigningMethodHS256 {
+				return nil, fmt.Errorf("unexpected signing method: %s", token.Method.Alg())
+			}
+
+			return jwtSecret, nil
+		},
+		jwt.WithValidMethods([]string{jwt.SigningMethodHS256.Alg()}))
 	if err != nil {
 		return nil, err
 	}

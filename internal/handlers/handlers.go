@@ -2,8 +2,10 @@ package handler
 
 import (
 	"encoding/json"
+	"homework/internal/auth"
 	"homework/internal/services"
 	"net/http"
+	"time"
 )
 
 type UserHandler struct {
@@ -54,10 +56,30 @@ func (h *UserHandler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	token, err := auth.GenerateJWT(user.ID)
+	if err != nil {
+		jsonResponseErr(w, http.StatusInternalServerError, "cant generate token")
+		return
+	}
+
+	http.SetCookie(w, &http.Cookie{
+		Name:     "access_token",
+		Value:    token,
+		Path:     "/",
+		Expires:  time.Now().Add(24 * time.Hour),
+		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
+	})
+
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(map[string]any{
-		"User": user,
+		"user": PersistUserResponse{
+			ID:    user.ID,
+			Login: user.Login,
+			Name:  user.Name,
+			Email: user.Email,
+		},
 	})
 }
 

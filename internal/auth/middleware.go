@@ -2,7 +2,6 @@ package auth
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 )
 
@@ -31,12 +30,7 @@ func JWTMiddleware(next http.HandlerFunc) http.HandlerFunc {
 	})
 }
 
-func Profile(w http.ResponseWriter, r *http.Request) {
-	userID, ok := r.Context().Value(ContextKeyUserID).(string)
-	if !ok {
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
-		return
-	}
-
-	fmt.Fprintf(w, "User ID: %s", userID)
+func UserIDFromContext(ctx context.Context) (string, bool) {
+	userID, ok := ctx.Value(ContextKeyUserID).(string)
+	return userID, ok && userID != ""
 }
