@@ -2,11 +2,11 @@ package storage
 
 import (
 	"context"
-	"fmt"
 
 	"log"
 
 	"github.com/google/uuid"
+	"github.com/patrickmn/go-cache"
 	"gorm.io/gorm"
 )
 
@@ -20,13 +20,13 @@ type UserStorage interface {
 
 type Storage struct {
 	db    *gorm.DB
-	cache *MemoryCache
+	cache *cache.Cache
 }
 
-func NewUserStorage(db *gorm.DB) *Storage {
+func NewUserStorage(db *gorm.DB, cache *cache.Cache) *Storage {
 	return &Storage{
 		db:    db,
-		cache: UserMemoryCache(),
+		cache: cache,
 	}
 }
 
@@ -35,6 +35,8 @@ func (UserModel) TableName() string {
 }
 
 func (s *Storage) Persist(ctx context.Context, userModel UserModel) (UserModel, error) {
+	key := KeyCache(userModel.ID)
+
 	if userModel.ID == "" {
 		userModel.ID = uuid.New().String()
 		err := s.db.WithContext(ctx).Create(&userModel).Error
@@ -42,6 +44,8 @@ func (s *Storage) Persist(ctx context.Context, userModel UserModel) (UserModel, 
 			log.Println(err)
 			return UserModel{}, err
 		}
+
+		s.cache.Set(key, userModel, fiveMinutes)
 	}
 
 	err := s.db.WithContext(ctx).Model(&userModel).Where("id = ?", userModel.ID).Updates(userModel).Error
@@ -50,14 +54,15 @@ func (s *Storage) Persist(ctx context.Context, userModel UserModel) (UserModel, 
 		return UserModel{}, err
 	}
 
-	s.cache.Set(userIDkey(userModel.ID), userModel)
-	s.cache.Set(userLoginKey(userModel.Login), userModel)
+	s.cache.Delete(key)
+	s.cache.Set(key, userModel, fiveMinutes)
 
 	return userModel, nil
 }
 
 func (s *Storage) Delete(ctx context.Context, id string) (UserModel, error) {
 	var userModel UserModel
+	key := KeyCache(id)
 
 	err := s.db.WithContext(ctx).Model(&userModel).Where("id = ?", id).Update("is_active", false).Error
 	if err != nil {
@@ -65,7 +70,7 @@ func (s *Storage) Delete(ctx context.Context, id string) (UserModel, error) {
 		return UserModel{}, err
 	}
 
-	s.cache.Delete(userIDkey(userModel.ID))
+	s.cache.Delete(key)
 
 	return userModel, nil
 }
@@ -73,20 +78,24 @@ func (s *Storage) Delete(ctx context.Context, id string) (UserModel, error) {
 func (s *Storage) Find(ctx context.Context, id string) (UserModel, error) {
 	var userModel UserModel
 
-	key := fmt.Sprintf("userID: %s", id)
+	key := KeyCache(id)
+	value, found := s.cache.Get(key)
+	if found {
+		user, ok := value.(UserModel)
+		if ok {
+			return user, nil
+		}
 
-	if value, ok := s.cache.Get(key); ok {
-		user := value.(UserModel)
-		return user, nil
+		s.cache.Delete(key)
 	}
 
 	err := s.db.WithContext(ctx).First(&userModel, id).Error
 	if err != nil {
 		log.Println(err)
-		return userModel, err
+		return UserModel{}, err
 	}
 
-	s.cache.Set(key, userModel)
+	s.cache.Set(key, userModel, fiveMinutes)
 
 	return userModel, nil
 }
@@ -94,31 +103,17 @@ func (s *Storage) Find(ctx context.Context, id string) (UserModel, error) {
 func (s *Storage) AuthUser(ctx context.Context, login string) (UserModel, error) {
 	var userModel UserModel
 
-	key := fmt.Sprintf("login: %s", login)
-
-	if value, ok := s.cache.Get(key); ok {
-		user := value.(UserModel)
-		return user, nil
-	}
-
 	err := s.db.WithContext(ctx).First(&userModel, login).Error
 	if err != nil {
 		log.Println(err)
 		return userModel, err
 	}
 
-	s.cache.Set(key, userModel)
-
 	return userModel, nil
 }
 
 func (s *Storage) GetList(ctx context.Context, limit, offset int, where, orderby string) ([]UserModel, error) {
-	key := userListKey(limit, offset, where, orderby)
-
-	if value, ok := s.cache.Get(key); ok {
-		users := value.([]UserModel)
-		return users, nil
-	}
+	// как заносится такой кеш?
 
 	var userModel []UserModel
 
@@ -127,8 +122,6 @@ func (s *Storage) GetList(ctx context.Context, limit, offset int, where, orderby
 		log.Println(err)
 		return nil, err
 	}
-
-	s.cache.Set(key, userModel)
 
 	return userModel, nil
 }

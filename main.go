@@ -15,9 +15,14 @@ import (
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/joho/godotenv"
+	"github.com/patrickmn/go-cache"
 )
 
-// Доделать Кеш
+// Переделать Кеш через go.cache/redis cache
+// Дополнительно проверка в мидлваре UUID
+// JWT Прописать refresh, добавить роль в claims (проверка ролей и доступа)
+// Добавить логи slog (в формате json)
+// Хеширование поменять на bcrypt
 
 func main() {
 	err := godotenv.Load()
@@ -28,6 +33,8 @@ func main() {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
+
+	cache := cache.Cache{} // Нужна ли Инициализация?
 
 	db, err := postgres.Init(ctx)
 	if err != nil {
@@ -42,7 +49,7 @@ func main() {
 	}
 
 	// перенести стор и сервисы в хэндлер
-	storage := storage.NewUserStorage(db)
+	storage := storage.NewUserStorage(db, &cache) // ???
 	service := services.NewUserServices(storage)
 	handler := handler.NewUserHandler(service)
 

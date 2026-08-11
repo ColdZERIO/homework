@@ -2,69 +2,11 @@ package storage
 
 import (
 	"fmt"
-	"strings"
-	"sync"
+	"time"
 )
 
-type MemoryCache struct {
-	mu    sync.Mutex
-	cache map[string]any
-}
+const fiveMinutes =  5 * time.Minute
 
-func userIDkey(id string) string {
+func KeyCache(id string) string {
 	return fmt.Sprintf("user:id:%s", id)
-}
-
-func userLoginKey(login string) string {
-	return fmt.Sprintf("user:login:%s", login)
-}
-
-func userListKey(limit, offset int, where, orderBy string) string {
-	return fmt.Sprintf("users:list:%d:%d:%s:%s", limit, offset, where, orderBy)
-}
-
-func UserMemoryCache() *MemoryCache {
-	return &MemoryCache{
-		cache: make(map[string]any),
-	}
-}
-
-func (mc *MemoryCache) Get(key string) (any, bool) {
-	mc.mu.Lock()
-	defer mc.mu.Unlock()
-
-	value, ok := mc.cache[key]
-	return value, ok
-}
-
-func (mc *MemoryCache) Set(key string, value any) {
-	mc.mu.Lock()
-	defer mc.mu.Unlock()
-
-	mc.cache[key] = value
-}
-
-func (mc *MemoryCache) Delete(key string) {
-	mc.mu.Lock()
-	defer mc.mu.Unlock()
-
-	delete(mc.cache, key)
-}
-
-func (mc *MemoryCache) DeleteByPrefix(prefix string) {
-	mc.mu.Lock()
-	defer mc.mu.Unlock()
-
-	for key := range mc.cache {
-		if strings.HasPrefix(key, prefix) {
-			delete(mc.cache, key)
-		}
-	}
-}
-
-func (mc *MemoryCache) Clear() {
-	mc.mu.Lock()
-	defer mc.mu.Unlock()
-
-	mc.cache = make(map[string]any)
 }
