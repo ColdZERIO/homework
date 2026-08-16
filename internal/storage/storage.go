@@ -35,38 +35,38 @@ func (UserModel) TableName() string {
 }
 
 func (s *Storage) Persist(ctx context.Context, userModel UserModel) (UserModel, error) {
-	key := KeyCache(userModel.ID)
+	key := KeyCacheID(userModel.ID)
 
 	if userModel.ID == "" {
 		userModel.ID = uuid.New().String()
 		err := s.db.WithContext(ctx).Create(&userModel).Error
 		if err != nil {
-			log.Println(err)
+			// log
+
 			return UserModel{}, err
 		}
 
-		s.cache.Set(key, userModel, fiveMinutes)
+		s.cache.Set(key, userModel, ttl)
 	}
 
 	err := s.db.WithContext(ctx).Model(&userModel).Where("id = ?", userModel.ID).Updates(userModel).Error
 	if err != nil {
-		log.Println(err)
+		// log
 		return UserModel{}, err
 	}
 
-	s.cache.Delete(key)
-	s.cache.Set(key, userModel, fiveMinutes)
+	s.cache.Set(key, userModel, ttl)
 
 	return userModel, nil
 }
 
 func (s *Storage) Delete(ctx context.Context, id string) (UserModel, error) {
 	var userModel UserModel
-	key := KeyCache(id)
+	key := KeyCacheID(id)
 
 	err := s.db.WithContext(ctx).Model(&userModel).Where("id = ?", id).Update("is_active", false).Error
 	if err != nil {
-		log.Println(err)
+		// log
 		return UserModel{}, err
 	}
 
@@ -78,7 +78,7 @@ func (s *Storage) Delete(ctx context.Context, id string) (UserModel, error) {
 func (s *Storage) Find(ctx context.Context, id string) (UserModel, error) {
 	var userModel UserModel
 
-	key := KeyCache(id)
+	key := KeyCacheID(id)
 	value, found := s.cache.Get(key)
 	if found {
 		user, ok := value.(UserModel)
@@ -95,12 +95,12 @@ func (s *Storage) Find(ctx context.Context, id string) (UserModel, error) {
 		return UserModel{}, err
 	}
 
-	s.cache.Set(key, userModel, fiveMinutes)
+	s.cache.Set(key, userModel, ttl)
 
 	return userModel, nil
 }
 
-func (s *Storage) AuthUser(ctx context.Context, login string) (UserModel, error) {
+func (s *Storage) AuthUser(ctx context.Context, login string) (UserModel, error) { // ???
 	var userModel UserModel
 
 	err := s.db.WithContext(ctx).First(&userModel, login).Error
@@ -113,15 +113,26 @@ func (s *Storage) AuthUser(ctx context.Context, login string) (UserModel, error)
 }
 
 func (s *Storage) GetList(ctx context.Context, limit, offset int, where, orderby string) ([]UserModel, error) {
-	// как заносится такой кеш?
-
 	var userModel []UserModel
+	key := KeyCacheList(QueryParams{
+		limit:   limit,
+		offset:  offset,
+		where:   where,
+		orderby: orderby,
+	})
+
+	value, found := s.cache.Get(key)
+	if found {
+		return value.([]UserModel), nil
+	}
 
 	err := s.db.WithContext(ctx).Limit(limit).Offset(offset).Where(where).Order(orderby).Find(&userModel).Error
 	if err != nil {
 		log.Println(err)
 		return nil, err
 	}
+
+	s.cache.Set(key, userModel, ttl)
 
 	return userModel, nil
 }

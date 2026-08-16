@@ -25,10 +25,16 @@ func NewUserServices(storage storage.UserStorage) *UserServices {
 }
 
 func (s *UserServices) Persist(ctx context.Context, ID, login, password, name, email string) (storage.UserModel, error) {
+	hashPassword, err := HashPassword(password)
+	if err != nil {
+		log.Println(err)
+		return storage.UserModel{}, err
+	}
+
 	userModel := storage.UserModel{
 		ID:           ID,
 		Login:        login,
-		PasswordHash: HashPassword(password),
+		PasswordHash: hashPassword,
 		Name:         name,
 		Email:        email,
 		IsActive:     true,

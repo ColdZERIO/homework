@@ -1,21 +1,24 @@
 package services
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
-	"errors"
+	"fmt"
+
+	"golang.org/x/crypto/bcrypt"
 )
 
-func HashPassword(password string) string {
-	hash := sha256.Sum256([]byte(password))
-	return hex.EncodeToString(hash[:])
+func HashPassword(password string) (string, error) {
+	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		return "", fmt.Errorf("hash password: %w", err)
+	}
+
+	return string(hash), nil
 }
 
 func ValidationPassword(inputPass, hashPass string) error {
-	checkPass := HashPassword(inputPass)
-
-	if checkPass != hashPass {
-		return errors.New("incorrect password")
+	err := bcrypt.CompareHashAndPassword([]byte(hashPass), []byte(inputPass))
+	if err != nil {
+		return fmt.Errorf("invalid password: %w", err)
 	}
 
 	return nil
