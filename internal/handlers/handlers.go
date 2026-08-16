@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"homework/internal/auth"
 	"homework/internal/services"
+	"log/slog"
 	"net/http"
 	"time"
 )
@@ -12,8 +13,10 @@ type UserHandler struct {
 	service services.UserService
 }
 
-func NewUserHandler(service services.UserService) *UserHandler {
-	return &UserHandler{service: service}
+func NewUserHandler(service services.UserService, logger *slog.Logger) *UserHandler {
+	return &UserHandler{
+		service: service,
+	}
 }
 
 func (h *UserHandler) Create(w http.ResponseWriter, r *http.Request) {
