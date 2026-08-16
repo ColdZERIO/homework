@@ -1,57 +1,31 @@
 package handler
 
 import (
-	"context"
 	"encoding/json"
-	"homework/internal/model"
+	"homework/internal/auth"
+	"homework/internal/services"
 	"net/http"
-	"strconv"
+	"time"
 )
 
-// ToUser на уровень выше ??? how?
-
-type UserRequest struct {
-	ID       string `json:"id"`
-	Login    string `json:"login"`
-	Password string `json:"password"`
-	Name     string `json:"name"`
-	Email    string `json:"email"`
-	Limit    int    `json:"limit"`
-	Offset   int    `json:"offset"`
+type UserHandler struct {
+	service services.UserService
 }
 
-type UserService interface {
-	Persist(ctx context.Context, userReq UserRequest) (int, error)
-	Delete(ctx context.Context, id int) error
-	Find(ctx context.Context, userID string) (model.User, error)
-	Update(ctx context.Context, userReq UserRequest) error
-	GetList(ctx context.Context, limit, offset int) ([]model.User, error)
+func NewUserHandler(service services.UserService) *UserHandler {
+	return &UserHandler{service: service}
 }
 
-type Handler struct {
-	svc UserService
-}
+func (h *UserHandler) Create(w http.ResponseWriter, r *http.Request) {
+	var userReq PersistUserRequest
 
-func UserHandler(svc UserService) *Handler {
-	return &Handler{svc: svc}
-}
-
-func (h *Handler) Ping(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
-	w.WriteHeader(http.StatusOK)
-	w.Write([]byte("pong"))
-}
-
-func (h *Handler) Persist(w http.ResponseWriter, r *http.Request) {
-	var user UserRequest
-
-	err := json.NewDecoder(r.Body).Decode(&user)
+	err := json.NewDecoder(r.Body).Decode(&userReq)
 	if err != nil {
 		jsonResponseErr(w, http.StatusBadRequest, "invalid body rec")
 		return
 	}
 
-	id, err := h.svc.Persist(r.Context(), user)
+	user, err := h.service.Persist(r.Context(), userReq.ID, userReq.Login, userReq.Password, userReq.Name, userReq.Email)
 	if err != nil {
 		jsonResponseErr(w, http.StatusInternalServerError, "cant add to DB")
 		return
@@ -59,34 +33,89 @@ func (h *Handler) Persist(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]any{
-		"UserID": id,
+	json.NewEncoder(w).Encode(PersistUserResponse{
+		ID:    user.ID,
+		Login: user.Login,
+		Name:  user.Name,
+		Email: user.Email,
 	})
 }
 
-func (h *Handler) Find(w http.ResponseWriter, r *http.Request) {
-	var user UserRequest
+func (h *UserHandler) Login(w http.ResponseWriter, r *http.Request) {
+	var userReq PersistUserRequest
+
+	err := json.NewDecoder(r.Body).Decode(&userReq)
+	if err != nil {
+		jsonResponseErr(w, http.StatusBadRequest, "invalid body rec")
+		return
+	}
+
+	user, err := h.service.CheckPassword(r.Context(), userReq.Login, userReq.Password)
+	if err != nil {
+		jsonResponseErr(w, http.StatusUnauthorized, "invalid login or password")
+		return
+	}
+
+	token, err := auth.GenerateJWT(user.ID)
+	if err != nil {
+		jsonResponseErr(w, http.StatusInternalServerError, "cant generate token")
+		return
+	}
+
+	http.SetCookie(w, &http.Cookie{
+		Name:     "access_token",
+		Value:    token,
+		Path:     "/",
+		Expires:  time.Now().Add(24 * time.Hour),
+		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
+	})
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]any{
+		"user": PersistUserResponse{
+			ID:    user.ID,
+			Login: user.Login,
+			Name:  user.Name,
+			Email: user.Email,
+		},
+	})
+}
+
+func (h *UserHandler) Find(w http.ResponseWriter, r *http.Request) {
+	var user FindUserRequest
 
 	err := json.NewDecoder(r.Body).Decode(&user)
+	if err != nil {
+		jsonResponseErr(w, http.StatusBadRequest, "invalid body request")
+		return
+	}
+
 	if user.ID == "" {
 		jsonResponseErr(w, http.StatusBadRequest, "id is required")
 		return
 	}
 
-	newUser, err := h.svc.Find(r.Context(), user.ID)
+	searchUser, err := h.service.Find(r.Context(), user.ID)
 	if err != nil {
 		jsonResponseErr(w, http.StatusBadRequest, "can`t fiend user by id")
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]any{
-		"User": newUser,
-	})
+	json.NewEncoder(w).Encode(FindUserResponse{
+		ID:        searchUser.ID,
+		Login:     searchUser.Login,
+		Name:      searchUser.Name,
+		Email:     searchUser.Email,
+		CreatedAt: searchUser.CreatedAt,
+	},
+	)
 }
 
-func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
-	var user UserRequest
+func (h *UserHandler) Delete(w http.ResponseWriter, r *http.Request) {
+	var user DeleteUserRequest
 
 	err := json.NewDecoder(r.Body).Decode(&user)
 	if user.ID == "" {
@@ -94,13 +123,7 @@ func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	id, err := strconv.Atoi(user.ID)
-	if err != nil {
-		jsonResponseErr(w, http.StatusBadRequest, "invalid id")
-		return
-	}
-
-	err = h.svc.Delete(r.Context(), id)
+	userDeleted, err := h.service.Delete(r.Context(), user.ID)
 	if err != nil {
 		jsonResponseErr(w, http.StatusInternalServerError, "cant delete from DB")
 		return
@@ -109,12 +132,16 @@ func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(map[string]any{
-		"message": "user deleted",
+		"User deleted": DeleteUserResponse{
+			ID:    userDeleted.ID,
+			Login: userDeleted.Login,
+			Name:  userDeleted.Name,
+		},
 	})
 }
 
-func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
-	var user UserRequest
+func (h *UserHandler) Update(w http.ResponseWriter, r *http.Request) {
+	var user PersistUserRequest
 
 	err := json.NewDecoder(r.Body).Decode(&user)
 	if err != nil {
@@ -122,7 +149,7 @@ func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = h.svc.Update(r.Context(), user)
+	userUpdated, err := h.service.Persist(r.Context(), user.ID, user.Login, user.Password, user.Name, user.Email)
 	if err != nil {
 		jsonResponseErr(w, http.StatusInternalServerError, "cant update in DB")
 		return
@@ -130,29 +157,24 @@ func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]any{
-		"User": user,
+	json.NewEncoder(w).Encode(PersistUserResponse{
+		ID:    userUpdated.ID,
+		Login: userUpdated.Login,
+		Name:  userUpdated.Name,
+		Email: userUpdated.Email,
 	})
 }
 
-func (h *Handler) GetList(w http.ResponseWriter, r *http.Request) {
-	var req UserRequest
+func (h *UserHandler) FindUserList(w http.ResponseWriter, r *http.Request) {
+	var userReq FindUserListRequest
 
-	err := json.NewDecoder(r.Body).Decode(&req)
+	err := json.NewDecoder(r.Body).Decode(&userReq)
 	if err != nil {
 		jsonResponseErr(w, http.StatusBadRequest, "invalid body rec")
 		return
 	}
 
-	if req.Limit <= 0 {
-		req.Limit = 10
-	}
-
-	if req.Offset < 0 {
-		req.Offset = 0
-	}
-
-	user, err := h.svc.GetList(r.Context(), req.Limit, req.Offset)
+	user, err := h.service.GetList(r.Context(), userReq.Limit, userReq.Offset, userReq.Where, userReq.OrderBy)
 	if err != nil {
 		jsonResponseErr(w, http.StatusInternalServerError, "cant get list from DB")
 		return

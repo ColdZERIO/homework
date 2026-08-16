@@ -1,27 +1,21 @@
 package main
 
 import (
-	middleware "homework/internal/Middleware"
+	auth "homework/internal/auth"
 	handler "homework/internal/handlers"
 
 	"github.com/go-chi/chi"
 )
 
-func routers(hand *handler.Handler) *chi.Mux {
-	r := chi.NewRouter()
+func routers(handler *handler.UserHandler) *chi.Mux {
+	router := chi.NewRouter()
 
-	r.Group(func(r chi.Router) {
-		r.Use(middleware.Auth)
+	router.Post("/create", auth.JWTMiddleware(handler.Create)) // Админ создает пользователя
+	router.Post("/login", handler.Login)
+	router.Get("/get", auth.JWTMiddleware(handler.Find))
+	router.Delete("/delete", auth.JWTMiddleware(handler.Delete))
+	router.Put("/update", auth.JWTMiddleware(handler.Update))
+	router.Get("/list", auth.JWTMiddleware(handler.FindUserList))
 
-		r.Get("/get", hand.Find)
-		r.Put("/update", hand.Update)
-		r.Get("/list", hand.GetList)
-		r.Delete("/delete", hand.Delete)
-	})
-
-	r.Get("/ping", hand.Ping)
-	r.Post("/persist", hand.Persist)
-	// Make login
-
-	return r
+	return router
 }

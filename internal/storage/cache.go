@@ -1,43 +1,24 @@
 package storage
 
-import "sync"
+import (
+	"fmt"
+	"time"
+)
 
-type MemoryCache struct {
-	mu    sync.Mutex
-	cache map[string]any
+const ttl = 5 * time.Minute
+
+type QueryParams struct {
+	limit   int
+	offset  int
+	where   string
+	orderby string
 }
 
-func UserMemoryCache() *MemoryCache {
-	return &MemoryCache{
-		cache: make(map[string]any),
-	}
+func KeyCacheID(id string) string {
+	return fmt.Sprintf("user:id:%s", id)
 }
 
-func (mc *MemoryCache) Get(key string) (any, bool) {
-	mc.mu.Lock()
-	defer mc.mu.Unlock()
-
-	value, ok := mc.cache[key]
-	return value, ok
-}
-
-func (mc *MemoryCache) Set(key string, value any) {
-	mc.mu.Lock()
-	defer mc.mu.Unlock()
-
-	mc.cache[key] = value
-}
-
-func (mc *MemoryCache) Delete(key string) {
-	mc.mu.Lock()
-	defer mc.mu.Unlock()
-
-	delete(mc.cache, key)
-}
-
-func (mc *MemoryCache) Clear() {
-	mc.mu.Lock()
-	defer mc.mu.Unlock()
-
-	mc.cache = make(map[string]any)
+// Добавить функцию с параметрами запроса как ключ
+func KeyCacheList(q QueryParams) string {
+	return fmt.Sprintf("user:list:%d:%d:%s:%s", q.limit, q.offset, q.where, q.orderby)
 }

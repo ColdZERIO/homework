@@ -2,81 +2,89 @@ package services
 
 import (
 	"context"
-	handler "homework/internal/handlers"
-	"homework/internal/model"
 	"homework/internal/storage"
-	"strconv"
-	"time"
+	"log"
 )
 
-type Storage interface {
-	Persist(ctx context.Context, userDB storage.UserDB) (int, error)
-	Delete(ctx context.Context, id int) error
-	Find(ctx context.Context, id int) (model.User, error)
-	Update(ctx context.Context, userReq handler.UserRequest) error
-	GetList(ctx context.Context, limit, offset int) ([]model.User, error)
+// Переписать структуры на параметры
+
+type UserService interface {
+	Persist(ctx context.Context, ID, login, password, name, email string) (storage.UserModel, error)
+	Delete(ctx context.Context, userID string) (storage.UserModel, error)
+	Find(ctx context.Context, userID string) (storage.UserModel, error)
+	GetList(ctx context.Context, limit, offset int, where, orderby string) ([]storage.UserModel, error)
+	CheckPassword(ctx context.Context, login, password string) (storage.UserModel, error)
 }
 
-type Services struct {
-	store Storage
+type UserServices struct {
+	storage storage.UserStorage
 }
 
-func UserServices(store Storage) *Services {
-	return &Services{store: store}
+func NewUserServices(storage storage.UserStorage) *UserServices {
+	return &UserServices{storage: storage}
 }
 
-func (s *Services) Persist(ctx context.Context, userReq handler.UserRequest) (int, error) {
-	userDB := storage.UserDB{
-		Login:     userReq.Login,
-		Password:  HashPassword(userReq.Password),
-		Name:      userReq.Name,
-		Email:     userReq.Email,
-		CreatedAt: time.Now().Unix(),
-		IsActive:  true,
+func (s *UserServices) Persist(ctx context.Context, ID, login, password, name, email string) (storage.UserModel, error) {
+	hashPassword, err := HashPassword(password)
+	if err != nil {
+		log.Println(err)
+		return storage.UserModel{}, err
 	}
 
-	id, err := s.store.Persist(ctx, userDB)
-	if err != nil {
-		return 0, err
+	userModel := storage.UserModel{
+		ID:           ID,
+		Login:        login,
+		PasswordHash: hashPassword,
+		Name:         name,
+		Email:        email,
+		IsActive:     true,
 	}
 
-	return id, nil
-}
-
-func (s *Services) Delete(ctx context.Context, id int) error {
-	err := s.store.Delete(ctx, id)
+	user, err := s.storage.Persist(ctx, userModel)
 	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (s *Services) Find(ctx context.Context, userID string) (model.User, error) {
-	id, err := strconv.Atoi(userID)
-	if err != nil {
-		return model.User{}, err
-	}
-
-	user, err := s.store.Find(ctx, id)
-	if err != nil {
-		return model.User{}, err
+		log.Println(err)
+		return storage.UserModel{}, err
 	}
 
 	return user, nil
 }
 
-func (s *Services) Update(ctx context.Context, userReq handler.UserRequest) error {
-	err := s.store.Update(ctx, userReq)
+func (s *UserServices) CheckPassword(ctx context.Context, login, password string) (storage.UserModel, error) {
+	user, err := s.storage.AuthUser(ctx, login)
 	if err != nil {
-		return err
+		log.Println(err)
+		return storage.UserModel{}, err
 	}
 
-	return nil
+	err = ValidationPassword(password, user.PasswordHash)
+	if err != nil {
+		log.Println(err)
+		return storage.UserModel{}, err
+	}
+
+	return user, nil
 }
 
-func (s *Services) GetList(ctx context.Context, limit, offset int) ([]model.User, error) {
-	users, err := s.store.GetList(ctx, limit, offset)
+func (s *UserServices) Delete(ctx context.Context, id string) (storage.UserModel, error) {
+	userDeleted, err := s.storage.Delete(ctx, id)
+	if err != nil {
+		return storage.UserModel{}, err
+	}
+
+	return userDeleted, nil
+}
+
+func (s *UserServices) Find(ctx context.Context, userID string) (storage.UserModel, error) {
+	user, err := s.storage.Find(ctx, userID)
+	if err != nil {
+		return storage.UserModel{}, err
+	}
+
+	return user, nil
+}
+
+func (s *UserServices) GetList(ctx context.Context, limit, offset int, where, orderby string) ([]storage.UserModel, error) {
+	users, err := s.storage.GetList(ctx, limit, offset, where, orderby)
 	if err != nil {
 		return nil, err
 	}

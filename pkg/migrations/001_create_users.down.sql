@@ -1,3 +1,4 @@
 DROP INDEX IF EXISTS login_index;
 DROP INDEX IF EXISTS email_index;
 DROP TABLE IF EXISTS users;
+DROP TABLE IF EXISTS schema_migrations;

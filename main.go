@@ -15,19 +15,13 @@ import (
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/joho/godotenv"
+	"github.com/patrickmn/go-cache"
 )
 
-// Объединить функцию Persist и Update
-// Найти информацию об id в DB UUID
-// Создать на каждую ручку свою стрктуру
-// Создать 3 роли При создании пользователей
-// Переименовать название интерфейсов (более информативнее)
-
-// ТЕОРИЯ
-// Изучить Статус Коды
-// HTTP и HTTPS как работает
-// Патерны/антипатерны архитектуры, ооп
-// Индексы в DB
+// Дополнительно проверка в мидлваре UUID
+// JWT Прописать refresh, добавить роль в claims (проверка ролей и доступа)
+// Добавить логи (в формате json)
+// Хеширование поменять на bcrypt (добавить соль)
 
 func main() {
 	err := godotenv.Load()
@@ -39,22 +33,23 @@ func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
+	cache := cache.Cache{} // Перенос в Ручки
+
 	db, err := postgres.Init(ctx)
 	if err != nil {
-		log.Fatal(err)
-		return
+		//
 	}
 
 	err = postgres.MigrationRun()
 	if err != nil {
-		log.Fatal(err)
-		return
+		//
+
 	}
 
-	// перенести стор и сервисы в хэндлер
-	storage := storage.UserStorage(db)
-	service := services.UserServices(storage)
-	handler := handler.UserHandler(service)
+	// Перенести storage и services в handler
+	storage := storage.NewUserStorage(db, &cache)
+	service := services.NewUserServices(storage)
+	handler := handler.NewUserHandler(service)
 
 	router := routers(handler)
 
@@ -63,7 +58,7 @@ func main() {
 		Handler: router,
 	}
 
-	log.Println("Server STARTED")
+	// log start
 
 	if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		log.Println(err)
@@ -82,10 +77,10 @@ func main() {
 	defer cancel()
 
 	if err := httpServer.Shutdown(shutDownCtx); err != nil {
-		log.Fatal(err)
+		log.Println(err)
 	}
 
-	log.Println("Server STOPPED")
+	// log stop
 }
 
 
