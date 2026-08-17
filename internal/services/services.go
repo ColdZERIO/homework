@@ -2,9 +2,13 @@ package services
 
 import (
 	"context"
+	"errors"
+	"homework/internal/auth"
 	"homework/internal/storage"
 	"log/slog"
 )
+
+var ErrUserInactive = errors.New("user is inactive")
 
 // Переписать структуры на параметры
 
@@ -29,6 +33,15 @@ func NewUserServices(storage storage.UserStorage, logger *slog.Logger) *UserServ
 }
 
 func (s *UserServices) Persist(ctx context.Context, ID, login, password, name, email string) (storage.UserModel, error) {
+	role := auth.RoleUser
+	if ID != "" {
+		currentUser, err := s.storage.Find(ctx, ID)
+		if err != nil {
+			return storage.UserModel{}, err
+		}
+		role = currentUser.Role
+	}
+
 	hashPassword, err := HashPassword(password)
 	if err != nil {
 		s.logger.Debug(
@@ -43,6 +56,7 @@ func (s *UserServices) Persist(ctx context.Context, ID, login, password, name, e
 		ID:           ID,
 		Login:        login,
 		PasswordHash: hashPassword,
+		Role:         role,
 		Name:         name,
 		Email:        email,
 		IsActive:     true,
@@ -71,6 +85,10 @@ func (s *UserServices) CheckPassword(ctx context.Context, login, password string
 		)
 
 		return storage.UserModel{}, err
+	}
+
+	if !user.IsActive {
+		return storage.UserModel{}, ErrUserInactive
 	}
 
 	err = ValidationPassword(password, user.PasswordHash)

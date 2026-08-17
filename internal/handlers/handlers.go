@@ -11,11 +11,15 @@ import (
 
 type UserHandler struct {
 	service services.UserService
+	tokens  *auth.TokenManager
+	logger  *slog.Logger
 }
 
-func NewUserHandler(service services.UserService, logger *slog.Logger) *UserHandler {
+func NewUserHandler(service services.UserService, tokens *auth.TokenManager, logger *slog.Logger) *UserHandler {
 	return &UserHandler{
 		service: service,
+		tokens:  tokens,
+		logger:  logger.With("layer", "handler"),
 	}
 }
 
@@ -39,6 +43,7 @@ func (h *UserHandler) Create(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(PersistUserResponse{
 		ID:    user.ID,
 		Login: user.Login,
+		Role:  user.Role,
 		Name:  user.Name,
 		Email: user.Email,
 	})
@@ -59,20 +64,14 @@ func (h *UserHandler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	token, err := auth.GenerateJWT(user.ID)
+	pair, err := h.tokens.GeneratePair(user.ID, user.Role)
 	if err != nil {
-		jsonResponseErr(w, http.StatusInternalServerError, "cant generate token")
+		h.logger.ErrorContext(r.Context(), "failed to generate token pair", slog.Any("error", err))
+		jsonResponseErr(w, http.StatusInternalServerError, "cant generate tokens")
 		return
 	}
 
-	http.SetCookie(w, &http.Cookie{
-		Name:     "access_token",
-		Value:    token,
-		Path:     "/",
-		Expires:  time.Now().Add(24 * time.Hour),
-		HttpOnly: true,
-		SameSite: http.SameSiteLaxMode,
-	})
+	h.setAuthCookies(w, pair)
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
@@ -80,6 +79,7 @@ func (h *UserHandler) Login(w http.ResponseWriter, r *http.Request) {
 		"user": PersistUserResponse{
 			ID:    user.ID,
 			Login: user.Login,
+			Role:  user.Role,
 			Name:  user.Name,
 			Email: user.Email,
 		},
@@ -99,10 +99,15 @@ func (h *UserHandler) Find(w http.ResponseWriter, r *http.Request) {
 		jsonResponseErr(w, http.StatusBadRequest, "id is required")
 		return
 	}
+	if !auth.CanAccessUser(r.Context(), user.ID) {
+		jsonResponseErr(w, http.StatusForbidden, "access denied")
+		return
+	}
 
 	searchUser, err := h.service.Find(r.Context(), user.ID)
 	if err != nil {
 		jsonResponseErr(w, http.StatusBadRequest, "can`t fiend user by id")
+		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -121,8 +126,16 @@ func (h *UserHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	var user DeleteUserRequest
 
 	err := json.NewDecoder(r.Body).Decode(&user)
+	if err != nil {
+		jsonResponseErr(w, http.StatusBadRequest, "invalid body request")
+		return
+	}
 	if user.ID == "" {
 		jsonResponseErr(w, http.StatusBadRequest, "id is required")
+		return
+	}
+	if !auth.CanAccessUser(r.Context(), user.ID) {
+		jsonResponseErr(w, http.StatusForbidden, "access denied")
 		return
 	}
 
@@ -143,12 +156,85 @@ func (h *UserHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+func (h *UserHandler) Refresh(w http.ResponseWriter, r *http.Request) {
+	cookie, err := r.Cookie("refresh_token")
+	if err != nil {
+		jsonResponseErr(w, http.StatusUnauthorized, "refresh token is missing")
+		return
+	}
+
+	claims, err := h.tokens.ParseRefreshToken(cookie.Value)
+	if err != nil {
+		jsonResponseErr(w, http.StatusUnauthorized, "invalid refresh token")
+		return
+	}
+
+	user, err := h.service.Find(r.Context(), claims.UserID)
+	if err != nil || !user.IsActive {
+		jsonResponseErr(w, http.StatusUnauthorized, "user is unavailable")
+		return
+	}
+
+	pair, err := h.tokens.GeneratePair(user.ID, user.Role)
+	if err != nil {
+		h.logger.ErrorContext(r.Context(), "failed to refresh tokens", slog.Any("error", err))
+		jsonResponseErr(w, http.StatusInternalServerError, "cant generate tokens")
+		return
+	}
+
+	h.setAuthCookies(w, pair)
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *UserHandler) Logout(w http.ResponseWriter, _ *http.Request) {
+	http.SetCookie(w, expiredCookie("access_token", "/"))
+	http.SetCookie(w, expiredCookie("refresh_token", "/refresh"))
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *UserHandler) setAuthCookies(w http.ResponseWriter, pair auth.TokenPair) {
+	http.SetCookie(w, &http.Cookie{
+		Name:     "access_token",
+		Value:    pair.AccessToken,
+		Path:     "/",
+		MaxAge:   int((15 * time.Minute).Seconds()),
+		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
+	})
+	http.SetCookie(w, &http.Cookie{
+		Name:     "refresh_token",
+		Value:    pair.RefreshToken,
+		Path:     "/refresh",
+		MaxAge:   int((7 * 24 * time.Hour).Seconds()),
+		HttpOnly: true,
+		SameSite: http.SameSiteStrictMode,
+	})
+}
+
+func expiredCookie(name, path string) *http.Cookie {
+	return &http.Cookie{
+		Name:     name,
+		Value:    "",
+		Path:     path,
+		MaxAge:   -1,
+		HttpOnly: true,
+	}
+}
+
 func (h *UserHandler) Update(w http.ResponseWriter, r *http.Request) {
 	var user PersistUserRequest
 
 	err := json.NewDecoder(r.Body).Decode(&user)
 	if err != nil {
 		jsonResponseErr(w, http.StatusBadRequest, "invalid body rec")
+		return
+	}
+	if user.ID == "" {
+		jsonResponseErr(w, http.StatusBadRequest, "id is required")
+		return
+	}
+	if !auth.CanAccessUser(r.Context(), user.ID) {
+		jsonResponseErr(w, http.StatusForbidden, "access denied")
 		return
 	}
 
