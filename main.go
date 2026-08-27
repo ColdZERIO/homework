@@ -26,10 +26,8 @@ const (
 	refreshTokenTTL = 7 * 24 * time.Hour
 )
 
-// done Дополнительно проверка в мидлваре UUID
-// JWT Прописать refresh, добавить роль в claims (проверка ролей и доступа)
-// done Добавить логи (в формате json)
-// done Хеширование поменять на bcrypt (добавить соль(в bcrypt соль генерируется автоматически в DefaultCost))
+// JWT Прописать refresh, добавить роль в claims (проверка ролей и доступа), сделать отдельный файл ролей и алиас на тип данных Роль (ВЕРНУТЬ КАК БЫЛО)
+// Git flow, изучить. 
 
 func main() {
 	err := godotenv.Load()
@@ -76,7 +74,7 @@ func main() {
 		return
 	}
 
-	// Перенести storage и services в handler
+	// Перенести storage и services в application
 	storage := storage.NewUserStorage(db, &cache, appLogger)
 	service := services.NewUserServices(storage, appLogger)
 	handler := handler.NewUserHandler(service, tokenManager, appLogger)

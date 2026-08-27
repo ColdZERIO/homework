@@ -61,12 +61,17 @@ func (m *TokenManager) GeneratePair(userID, role string) (TokenPair, error) {
 func (m *TokenManager) generate(userID, role, tokenType string, ttl time.Duration) (string, error) {
 	now := time.Now()
 	claims := Claims{
-		UserID: userID, Role: role, TokenType: tokenType,
+		UserID:    userID,
+		Role:      role,
+		TokenType: tokenType,
 		RegisteredClaims: jwt.RegisteredClaims{
-			Subject: userID, ID: uuid.NewString(),
-			IssuedAt: jwt.NewNumericDate(now), ExpiresAt: jwt.NewNumericDate(now.Add(ttl)),
+			Subject: userID,
+			ID: uuid.NewString(),
+			IssuedAt: jwt.NewNumericDate(now),
+			ExpiresAt: jwt.NewNumericDate(now.Add(ttl)),
 		},
 	}
+
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	return token.SignedString(m.secret)
 }
