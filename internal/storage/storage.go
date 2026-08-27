@@ -104,7 +104,7 @@ func (s *Storage) Find(ctx context.Context, id string) (UserModel, error) {
 		s.cache.Delete(key)
 	}
 
-	err := s.db.WithContext(ctx).Where("id = ?", id).First(&userModel).Error
+	err := s.db.WithContext(ctx).First(&userModel, id).Error
 	if err != nil {
 		s.logger.Error(
 			"failed to find user from database",
@@ -120,16 +120,16 @@ func (s *Storage) Find(ctx context.Context, id string) (UserModel, error) {
 	return userModel, nil
 }
 
-func (s *Storage) AuthUser(ctx context.Context, login string) (UserModel, error) {
+func (s *Storage) AuthUser(ctx context.Context, login string) (UserModel, error) { // ???
 	var userModel UserModel
 
-	err := s.db.WithContext(ctx).Where("login = ?", login).First(&userModel).Error
+	err := s.db.WithContext(ctx).First(&userModel, login).Error
 	if err != nil {
-		// s.logger.Info(
-		// 	"failed to auth user",
-		// 	slog.String("login", login),
-		// 	slog.Any("error", err),
-		// )
+		s.logger.Debug(
+			"failed to auth user",
+			slog.String("login", userModel.Login),
+			slog.Any("error", err),
+		)
 
 		return UserModel{}, err
 	}

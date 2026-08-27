@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"homework/internal/auth"
 	handler "homework/internal/handlers"
 	"homework/internal/logger"
 	"homework/internal/services"
@@ -21,13 +20,10 @@ import (
 	"github.com/patrickmn/go-cache"
 )
 
-const (
-	accessTokenTTL  = 15 * time.Minute
-	refreshTokenTTL = 7 * 24 * time.Hour
-)
-
-// JWT Прописать refresh, добавить роль в claims (проверка ролей и доступа), сделать отдельный файл ролей и алиас на тип данных Роль (ВЕРНУТЬ КАК БЫЛО)
-// Git flow, изучить. 
+// done Дополнительно проверка в мидлваре UUID
+// JWT Прописать refresh, добавить роль в claims (проверка ролей и доступа)
+// done Добавить логи (в формате json)
+// Хеширование поменять на bcrypt (добавить соль)
 
 func main() {
 	err := godotenv.Load()
@@ -52,7 +48,6 @@ func main() {
 			ctx, "error init database",
 			slog.Any("error", err),
 		)
-		return
 	}
 
 	err = postgres.MigrationRun()
@@ -61,25 +56,14 @@ func main() {
 			ctx, "migration error database",
 			slog.Any("error", err),
 		)
-		return
-	}
-
-	tokenManager, err := auth.NewTokenManager(
-		os.Getenv("SECRET_KEY"),
-		accessTokenTTL,
-		refreshTokenTTL,
-	)
-	if err != nil {
-		appLogger.Error("error init token manager", slog.Any("error", err))
-		return
 	}
 
 	// Перенести storage и services в application
 	storage := storage.NewUserStorage(db, &cache, appLogger)
 	service := services.NewUserServices(storage, appLogger)
-	handler := handler.NewUserHandler(service, tokenManager, appLogger)
+	handler := handler.NewUserHandler(service, appLogger)
 
-	router := routers(handler, tokenManager)
+	router := routers(handler)
 
 	httpServer := &http.Server{
 		Addr:    ":8080",

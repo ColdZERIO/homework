@@ -18,6 +18,7 @@ func KeyCacheID(id string) string {
 	return fmt.Sprintf("user:id:%s", id)
 }
 
+// Добавить функцию с параметрами запроса как ключ
 func KeyCacheList(q QueryParams) string {
 	return fmt.Sprintf("user:list:%d:%d:%s:%s", q.limit, q.offset, q.where, q.orderby)
 }
