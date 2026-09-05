@@ -11,10 +11,11 @@ import (
 
 type Claims struct {
 	UserID string `json:"user_id"`
+	Role   string `json:"role"`
 	jwt.RegisteredClaims
 }
 
-func GenerateJWT(userID string) (string, error) {
+func GenerateJWT(userID, role string) (string, error) {
 	jwtSecret := []byte(os.Getenv("SECRET_KEY"))
 	if len(jwtSecret) == 0 {
 		return "", errors.New("SECRET_KEY is empty")
@@ -22,6 +23,7 @@ func GenerateJWT(userID string) (string, error) {
 
 	claims := &Claims{
 		UserID: userID,
+		Role:   role,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Hour)),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
@@ -50,6 +52,7 @@ func ParseJWT(tokenString string) (*Claims, error) {
 			return jwtSecret, nil
 		},
 		jwt.WithValidMethods([]string{jwt.SigningMethodHS256.Alg()}))
+
 	if err != nil {
 		return nil, err
 	}
