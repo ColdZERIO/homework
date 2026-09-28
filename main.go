@@ -3,10 +3,12 @@ package main
 import (
 	"context"
 	handler "homework/internal/handlers"
+	"homework/internal/logger"
 	"homework/internal/services"
 	"homework/internal/storage"
 	postgres "homework/pkg/db"
 	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
@@ -18,9 +20,9 @@ import (
 	"github.com/patrickmn/go-cache"
 )
 
-// Дополнительно проверка в мидлваре UUID
+// done Дополнительно проверка в мидлваре UUID
 // JWT Прописать refresh, добавить роль в claims (проверка ролей и доступа)
-// Добавить логи (в формате json)
+// done Добавить логи (в формате json)
 // Хеширование поменять на bcrypt (добавить соль)
 
 func main() {
@@ -35,21 +37,31 @@ func main() {
 
 	cache := cache.Cache{} // Перенос в Ручки
 
+	appLogger := logger.New(logger.Config{
+		Level:     slog.LevelInfo,
+		AddSource: false,
+	})
+
 	db, err := postgres.Init(ctx)
 	if err != nil {
-		//
+		appLogger.ErrorContext(
+			ctx, "error init database",
+			slog.Any("error", err),
+		)
 	}
 
 	err = postgres.MigrationRun()
 	if err != nil {
-		//
-
+		appLogger.ErrorContext(
+			ctx, "migration error database",
+			slog.Any("error", err),
+		)
 	}
 
-	// Перенести storage и services в handler
-	storage := storage.NewUserStorage(db, &cache)
-	service := services.NewUserServices(storage)
-	handler := handler.NewUserHandler(service)
+	// Перенести storage и services в application
+	storage := storage.NewUserStorage(db, &cache, appLogger)
+	service := services.NewUserServices(storage, appLogger)
+	handler := handler.NewUserHandler(service, appLogger)
 
 	router := routers(handler)
 
@@ -58,10 +70,17 @@ func main() {
 		Handler: router,
 	}
 
-	// log start
+	appLogger.Info(
+		"Server started",
+		slog.String("address", "localhost"),
+		slog.String("port", ":8080"),
+	)
 
 	if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-		log.Println(err)
+		appLogger.ErrorContext(
+			ctx, "error listenAndServe",
+			slog.Any("error", err),
+		)
 	}
 
 	ctx, stop := signal.NotifyContext(
@@ -77,10 +96,14 @@ func main() {
 	defer cancel()
 
 	if err := httpServer.Shutdown(shutDownCtx); err != nil {
-		log.Println(err)
+		appLogger.ErrorContext(
+			ctx, "error shutdown server",
+			slog.Any("error", err),
+		)
 	}
 
-	// log stop
+	appLogger.Info(
+		"server stopped",
+		slog.String("port", ":8080"), // ???
+	)
 }
-
-

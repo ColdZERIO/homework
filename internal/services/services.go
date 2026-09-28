@@ -3,7 +3,7 @@ package services
 import (
 	"context"
 	"homework/internal/storage"
-	"log"
+	"log/slog"
 )
 
 // Переписать структуры на параметры
@@ -18,16 +18,24 @@ type UserService interface {
 
 type UserServices struct {
 	storage storage.UserStorage
+	logger  *slog.Logger
 }
 
-func NewUserServices(storage storage.UserStorage) *UserServices {
-	return &UserServices{storage: storage}
+func NewUserServices(storage storage.UserStorage, logger *slog.Logger) *UserServices {
+	return &UserServices{
+		storage: storage,
+		logger:  logger.With("layer", "services"),
+	}
 }
 
 func (s *UserServices) Persist(ctx context.Context, ID, login, password, name, email string) (storage.UserModel, error) {
 	hashPassword, err := HashPassword(password)
 	if err != nil {
-		log.Println(err)
+		s.logger.Debug(
+			"failed to hash password",
+			slog.String("user_id", ID),
+			slog.Any("error", err),
+		)
 		return storage.UserModel{}, err
 	}
 
@@ -42,7 +50,11 @@ func (s *UserServices) Persist(ctx context.Context, ID, login, password, name, e
 
 	user, err := s.storage.Persist(ctx, userModel)
 	if err != nil {
-		log.Println(err)
+		s.logger.Debug(
+			"failed to add user in database",
+			slog.String("user_id", ID),
+			slog.Any("error", err),
+		)
 		return storage.UserModel{}, err
 	}
 
@@ -52,13 +64,23 @@ func (s *UserServices) Persist(ctx context.Context, ID, login, password, name, e
 func (s *UserServices) CheckPassword(ctx context.Context, login, password string) (storage.UserModel, error) {
 	user, err := s.storage.AuthUser(ctx, login)
 	if err != nil {
-		log.Println(err)
+		s.logger.Debug(
+			"failed to get password from database",
+			slog.String("login", login),
+			slog.Any("error", err),
+		)
+
 		return storage.UserModel{}, err
 	}
 
 	err = ValidationPassword(password, user.PasswordHash)
 	if err != nil {
-		log.Println(err)
+		s.logger.Debug(
+			"invalid user password",
+			slog.String("login", login),
+			slog.Any("error", err),
+		)
+
 		return storage.UserModel{}, err
 	}
 
@@ -68,6 +90,12 @@ func (s *UserServices) CheckPassword(ctx context.Context, login, password string
 func (s *UserServices) Delete(ctx context.Context, id string) (storage.UserModel, error) {
 	userDeleted, err := s.storage.Delete(ctx, id)
 	if err != nil {
+		s.logger.Debug(
+			"failed to delete user",
+			slog.String("user_id", id),
+			slog.Any("error", err),
+		)
+
 		return storage.UserModel{}, err
 	}
 
@@ -77,6 +105,12 @@ func (s *UserServices) Delete(ctx context.Context, id string) (storage.UserModel
 func (s *UserServices) Find(ctx context.Context, userID string) (storage.UserModel, error) {
 	user, err := s.storage.Find(ctx, userID)
 	if err != nil {
+		s.logger.Debug(
+			"failed ti find user",
+			slog.String("user_id", userID),
+			slog.Any("error", err),
+		)
+
 		return storage.UserModel{}, err
 	}
 
@@ -86,6 +120,11 @@ func (s *UserServices) Find(ctx context.Context, userID string) (storage.UserMod
 func (s *UserServices) GetList(ctx context.Context, limit, offset int, where, orderby string) ([]storage.UserModel, error) {
 	users, err := s.storage.GetList(ctx, limit, offset, where, orderby)
 	if err != nil {
+		s.logger.Debug(
+			"invalid user_list query",
+			slog.Any("error", err),
+		)
+
 		return nil, err
 	}
 

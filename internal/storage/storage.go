@@ -2,8 +2,7 @@ package storage
 
 import (
 	"context"
-
-	"log"
+	"log/slog"
 
 	"github.com/google/uuid"
 	"github.com/patrickmn/go-cache"
@@ -19,14 +18,16 @@ type UserStorage interface {
 }
 
 type Storage struct {
-	db    *gorm.DB
-	cache *cache.Cache
+	db     *gorm.DB
+	cache  *cache.Cache
+	logger *slog.Logger
 }
 
-func NewUserStorage(db *gorm.DB, cache *cache.Cache) *Storage {
+func NewUserStorage(db *gorm.DB, cache *cache.Cache, logger *slog.Logger) *Storage {
 	return &Storage{
-		db:    db,
-		cache: cache,
+		db:     db,
+		cache:  cache,
+		logger: logger.With("layer", "storage"),
 	}
 }
 
@@ -41,7 +42,11 @@ func (s *Storage) Persist(ctx context.Context, userModel UserModel) (UserModel, 
 		userModel.ID = uuid.New().String()
 		err := s.db.WithContext(ctx).Create(&userModel).Error
 		if err != nil {
-			// log
+			s.logger.Error(
+				"failed to create user in database",
+				slog.String("user_id", userModel.ID),
+				slog.Any("error", err),
+			)
 
 			return UserModel{}, err
 		}
@@ -51,7 +56,12 @@ func (s *Storage) Persist(ctx context.Context, userModel UserModel) (UserModel, 
 
 	err := s.db.WithContext(ctx).Model(&userModel).Where("id = ?", userModel.ID).Updates(userModel).Error
 	if err != nil {
-		// log
+		s.logger.Error(
+			"failed to fet user from database",
+			slog.String("user_id", userModel.ID),
+			slog.Any("error", err),
+		)
+
 		return UserModel{}, err
 	}
 
@@ -66,7 +76,12 @@ func (s *Storage) Delete(ctx context.Context, id string) (UserModel, error) {
 
 	err := s.db.WithContext(ctx).Model(&userModel).Where("id = ?", id).Update("is_active", false).Error
 	if err != nil {
-		// log
+		s.logger.Error(
+			"failed to delete user from database",
+			slog.String("user_id", userModel.ID),
+			slog.Any("error", err),
+		)
+
 		return UserModel{}, err
 	}
 
@@ -91,7 +106,12 @@ func (s *Storage) Find(ctx context.Context, id string) (UserModel, error) {
 
 	err := s.db.WithContext(ctx).First(&userModel, id).Error
 	if err != nil {
-		log.Println(err)
+		s.logger.Error(
+			"failed to find user from database",
+			slog.String("user_id", userModel.ID),
+			slog.Any("error", err),
+		)
+
 		return UserModel{}, err
 	}
 
@@ -105,8 +125,13 @@ func (s *Storage) AuthUser(ctx context.Context, login string) (UserModel, error)
 
 	err := s.db.WithContext(ctx).First(&userModel, login).Error
 	if err != nil {
-		log.Println(err)
-		return userModel, err
+		s.logger.Debug(
+			"failed to auth user",
+			slog.String("login", userModel.Login),
+			slog.Any("error", err),
+		)
+
+		return UserModel{}, err
 	}
 
 	return userModel, nil
@@ -128,7 +153,11 @@ func (s *Storage) GetList(ctx context.Context, limit, offset int, where, orderby
 
 	err := s.db.WithContext(ctx).Limit(limit).Offset(offset).Where(where).Order(orderby).Find(&userModel).Error
 	if err != nil {
-		log.Println(err)
+		s.logger.Error(
+			"invalid UserList query",
+			slog.Any("error", err),
+		)
+
 		return nil, err
 	}
 
