@@ -21,7 +21,6 @@ import (
 )
 
 // JWT Прописать refresh, добавить роль в claims (проверка ролей и доступа)
-// Хеширование поменять на bcrypt (добавить соль)
 
 func main() {
 	err := godotenv.Load()
