@@ -21,7 +21,7 @@ func JWTMiddleware(next http.HandlerFunc) http.HandlerFunc {
 			return
 		}
 
-		claims, err := ParseJWT(cookie.Value)
+		claims, err := ParseToken(cookie.Value, AccessToken)
 		if err != nil {
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 			return
@@ -36,9 +36,4 @@ func JWTMiddleware(next http.HandlerFunc) http.HandlerFunc {
 		ctx := context.WithValue(r.Context(), ContextKeyUserID, userID.String())
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
-}
-
-func UserIDFromContext(ctx context.Context) (string, bool) {
-	userID, ok := ctx.Value(ContextKeyUserID).(string)
-	return userID, ok && userID != ""
 }

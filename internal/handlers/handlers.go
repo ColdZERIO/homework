@@ -59,31 +59,76 @@ func (h *UserHandler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	token, err := auth.GenerateJWT(user.ID, user.Role)
+	accessToken, err := auth.GenerateAccessToken(user.ID, user.Role)
 	if err != nil {
-		jsonResponseErr(w, http.StatusInternalServerError, "cant generate token")
+		jsonResponseErr(w, http.StatusInternalServerError, "cant generate access token")
+		return
+	}
+
+	refreshToken, err := auth.GenerateRefreshToken(user.ID, user.Role)
+	if err != nil {
+		jsonResponseErr(w, http.StatusInternalServerError, "cant generate refresh token")
 		return
 	}
 
 	http.SetCookie(w, &http.Cookie{
 		Name:     "access_token",
-		Value:    token,
+		Value:    accessToken,
 		Path:     "/",
-		Expires:  time.Now().Add(24 * time.Hour),
+		Expires:  time.Now().Add(15 * time.Minute),
 		HttpOnly: true,
+		Secure:   false,
+		SameSite: http.SameSiteLaxMode,
+	})
+
+	// сделать хранение в БД!!!
+	http.SetCookie(w, &http.Cookie{
+		Name:     "refresh_token",
+		Value:    refreshToken,
+		Path:     "/",
+		Expires:  time.Now().Add(7 * 24 * time.Hour),
+		HttpOnly: true,
+		Secure:   false,
 		SameSite: http.SameSiteLaxMode,
 	})
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]any{
-		"user": PersistUserResponse{
-			ID:    user.ID,
-			Login: user.Login,
-			Name:  user.Name,
-			Email: user.Email,
-		},
+	json.NewEncoder(w).Encode("authentication was successful")
+}
+
+func RefreshToken(w http.ResponseWriter, r *http.Request) {
+	cookie, err := r.Cookie("refresh_token")
+	if err != nil {
+		http.Error(w, "refresh token required", http.StatusUnauthorized)
+		return
+	}
+
+	claims, err := auth.ParseToken(cookie.Value, auth.RefreshToken)
+	if err != nil {
+		http.Error(w, "invalid refresh token", http.StatusUnauthorized)
+		return
+	}
+
+	newAccessToken, err := auth.GenerateAccessToken(claims.ID, claims.Role)
+	if err != nil {
+		http.Error(w, "failed to create token", http.StatusUnauthorized)
+		return
+	}
+
+	http.SetCookie(w, &http.Cookie{
+		Name:     "access_token",
+		Value:    newAccessToken,
+		Path:     "/",
+		HttpOnly: true,
+		Secure:   false,
+		SameSite: http.SameSiteLaxMode,
+		MaxAge:   15,
 	})
+
+	// сделать новый рефреш токен
+	
+	w.WriteHeader(http.StatusOK)
 }
 
 func (h *UserHandler) Find(w http.ResponseWriter, r *http.Request) {

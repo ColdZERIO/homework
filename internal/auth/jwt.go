@@ -2,26 +2,28 @@ package auth
 
 import (
 	"errors"
-	"fmt"
 	"os"
 	"time"
 
 	"github.com/golang-jwt/jwt/v4"
 )
 
+type jwtType string
+
+const (
+	AccessToken  jwtType = "access"
+	RefreshToken jwtType = "refresh"
+)
+
 type Claims struct {
-	UserID string `json:"user_id"`
-	Role   string `json:"role"`
+	UserID string  `json:"user_id"`
+	Role   string  `json:"role"`
+	Type   jwtType `json:"type"`
 	jwt.RegisteredClaims
 }
 
-func GenerateJWT(userID, role string) (string, error) {
-	jwtSecret := []byte(os.Getenv("SECRET_KEY"))
-	if len(jwtSecret) == 0 {
-		return "", errors.New("SECRET_KEY is empty")
-	}
-
-	claims := &Claims{
+func GenerateAccessToken(userID, role string) (string, error) {
+	claims := Claims{
 		UserID: userID,
 		Role:   role,
 		RegisteredClaims: jwt.RegisteredClaims{
@@ -32,13 +34,28 @@ func GenerateJWT(userID, role string) (string, error) {
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 
-	return token.SignedString(jwtSecret)
+	return token.SignedString([]byte(os.Getenv("ACCESS_KEY")))
 }
 
-func ParseJWT(tokenString string) (*Claims, error) {
-	jwtSecret := []byte(os.Getenv("SECRET_KEY"))
-	if len(jwtSecret) == 0 {
-		return nil, errors.New("SECRET_KEY is empty")
+func GenerateRefreshToken(userID, role string) (string, error) {
+	claims := Claims{
+		UserID: userID,
+		Role:   role,
+		RegisteredClaims: jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(7 * 24 * time.Hour)),
+			IssuedAt:  jwt.NewNumericDate(time.Now()),
+		},
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+
+	return token.SignedString([]byte(os.Getenv("REFRESH_KEY")))
+}
+
+func ParseToken(tokenString string, expectedType jwtType) (*Claims, error) {
+	accessKey := []byte(os.Getenv("ACCESS_KEY"))
+	if len(accessKey) < 0 || len(accessKey) > 32 {
+		return nil, errors.New("invalid access key")
 	}
 
 	token, err := jwt.ParseWithClaims(
@@ -46,12 +63,12 @@ func ParseJWT(tokenString string) (*Claims, error) {
 		&Claims{},
 		func(token *jwt.Token) (any, error) {
 			if token.Method != jwt.SigningMethodHS256 {
-				return nil, fmt.Errorf("unexpected signing method: %s", token.Method.Alg())
+				return nil, jwt.ErrInvalidKey
 			}
 
-			return jwtSecret, nil
+			return accessKey, nil
 		},
-		jwt.WithValidMethods([]string{jwt.SigningMethodHS256.Alg()}))
+	)
 
 	if err != nil {
 		return nil, err
@@ -60,6 +77,10 @@ func ParseJWT(tokenString string) (*Claims, error) {
 	claims, ok := token.Claims.(*Claims)
 	if !ok || !token.Valid {
 		return nil, jwt.ErrTokenInvalidClaims
+	}
+
+	if claims.Type != expectedType {
+		return nil, jwt.ErrInvalidKeyType
 	}
 
 	return claims, nil
