@@ -54,9 +54,6 @@ func GenerateRefreshToken(userID, role string) (string, error) {
 
 func ParseToken(tokenString string, expectedType jwtType) (*Claims, error) {
 	accessKey := []byte(os.Getenv("ACCESS_KEY"))
-	if len(accessKey) < 0 || len(accessKey) > 32 {
-		return nil, errors.New("invalid access key")
-	}
 
 	token, err := jwt.ParseWithClaims(
 		tokenString,
