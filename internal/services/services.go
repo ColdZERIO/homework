@@ -8,12 +8,14 @@ import (
 
 // Переписать структуры на параметры
 
-type UserService interface {
+type Service interface {
 	Persist(ctx context.Context, ID, login, password, name, email string) (storage.UserModel, error)
 	Delete(ctx context.Context, userID string) (storage.UserModel, error)
 	Find(ctx context.Context, userID string) (storage.UserModel, error)
 	GetList(ctx context.Context, limit, offset int, where, orderby string) ([]storage.UserModel, error)
 	CheckPassword(ctx context.Context, login, password string) (storage.UserModel, error)
+	UpdateRefreshToken(ctx context.Context, userID string, tokenString string) error
+	GetRefreshToken(ctx context.Context, userID string) (string, error)
 }
 
 type UserServices struct {

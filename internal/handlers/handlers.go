@@ -10,10 +10,10 @@ import (
 )
 
 type UserHandler struct {
-	service services.UserService
+	service services.Service
 }
 
-func NewUserHandler(service services.UserService, logger *slog.Logger) *UserHandler {
+func NewUserHandler(service services.Service, logger *slog.Logger) *UserHandler {
 	return &UserHandler{
 		service: service,
 	}
@@ -82,29 +82,42 @@ func (h *UserHandler) Login(w http.ResponseWriter, r *http.Request) {
 	})
 
 	// сделать хранение в БД!!!
-	http.SetCookie(w, &http.Cookie{
-		Name:     "refresh_token",
-		Value:    refreshToken,
-		Path:     "/",
-		Expires:  time.Now().Add(7 * 24 * time.Hour),
-		HttpOnly: true,
-		Secure:   false,
-		SameSite: http.SameSiteLaxMode,
-	})
+	// http.SetCookie(w, &http.Cookie{
+	// 	Name:     "refresh_token",
+	// 	Value:    refreshToken,
+	// 	Path:     "/",
+	// 	Expires:  time.Now().Add(7 * 24 * time.Hour),
+	// 	HttpOnly: true,
+	// 	Secure:   false,
+	// 	SameSite: http.SameSiteLaxMode,
+	// })
+
+	err = h.service.UpdateRefreshToken(r.Context(), userReq.ID, refreshToken)
+	if err != nil {
+		jsonResponseErr(w, http.StatusInternalServerError, "cant add refresh token to database")
+	}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode("authentication was successful")
 }
 
-func RefreshToken(w http.ResponseWriter, r *http.Request) {
-	cookie, err := r.Cookie("refresh_token")
+func (h *UserHandler) RefreshToken(w http.ResponseWriter, r *http.Request) {
+	// cookie, err := r.Cookie("refresh_token")
+	// if err != nil {
+	// 	http.Error(w, "refresh token required", http.StatusUnauthorized)
+	// 	return
+	// }
+	
+	var user FindUserRequest
+
+	token, err := h.service.GetRefreshToken(r.Context(), user.ID)
 	if err != nil {
-		http.Error(w, "refresh token required", http.StatusUnauthorized)
+		http.Error(w, "cant get token from DB", http.StatusUnauthorized)
 		return
 	}
 
-	claims, err := auth.ParseToken(cookie.Value, auth.RefreshToken)
+	claims, err := auth.ParseToken(token, auth.RefreshToken)
 	if err != nil {
 		http.Error(w, "invalid refresh token", http.StatusUnauthorized)
 		return
@@ -127,7 +140,7 @@ func RefreshToken(w http.ResponseWriter, r *http.Request) {
 	})
 
 	// сделать новый рефреш токен
-	
+
 	w.WriteHeader(http.StatusOK)
 }
 

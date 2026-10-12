@@ -50,3 +50,7 @@ type DeleteUserResponse struct {
 	Login string `json:"login"`
 	Name  string `json:"name"`
 }
+
+type UserTokenResponse struct {
+	RefreshToken string `json:"refresh_token"`
+}

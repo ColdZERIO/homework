@@ -15,6 +15,8 @@ type UserStorage interface {
 	Find(ctx context.Context, id string) (UserModel, error)
 	GetList(ctx context.Context, limit, offset int, where, orderby string) ([]UserModel, error)
 	AuthUser(ctx context.Context, login string) (UserModel, error)
+	UpdateRefreshToken(ctx context.Context, userID string, tokenString string) error
+	GetRefreshToken(ctx context.Context, userID string) (string, error)
 }
 
 type Storage struct {
@@ -29,10 +31,6 @@ func NewUserStorage(db *gorm.DB, cache *cache.Cache, logger *slog.Logger) *Stora
 		cache:  cache,
 		logger: logger.With("layer", "storage"),
 	}
-}
-
-func (UserModel) TableName() string {
-	return "users"
 }
 
 func (s *Storage) Persist(ctx context.Context, userModel UserModel) (UserModel, error) {
@@ -57,7 +55,7 @@ func (s *Storage) Persist(ctx context.Context, userModel UserModel) (UserModel, 
 	err := s.db.WithContext(ctx).Model(&userModel).Where("id = ?", userModel.ID).Updates(userModel).Error
 	if err != nil {
 		s.logger.Error(
-			"failed to fet user from database",
+			"failed to get user from database",
 			slog.String("user_id", userModel.ID),
 			slog.Any("error", err),
 		)

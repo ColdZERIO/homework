@@ -20,3 +20,11 @@ type UserTokenModel struct {
 	UserID       string `gorm:"column:user_id"`
 	RefreshToken string `gorm:"column:refresh_token"`
 }
+
+func (UserModel) TableName() string {
+	return "users"
+}
+
+func (UserTokenModel) TableName() string {
+	return "user_token"
+}

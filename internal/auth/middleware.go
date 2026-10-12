@@ -13,7 +13,7 @@ const (
 	ContextKeyUserID contextKey = "userID"
 )
 
-func JWTMiddleware(next http.HandlerFunc) http.HandlerFunc {
+func AuthMiddleware(next http.HandlerFunc) http.HandlerFunc {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		cookie, err := r.Cookie("access_token")
 		if err != nil {
@@ -28,7 +28,7 @@ func JWTMiddleware(next http.HandlerFunc) http.HandlerFunc {
 		}
 
 		userID, err := uuid.Parse(claims.ID)
-		if err != nil {
+		if  err != nil {
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 			return
 		}
