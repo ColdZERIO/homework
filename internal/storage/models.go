@@ -14,3 +14,9 @@ type UserModel struct {
 	CreatedAt    time.Time `gorm:"column:created_at"`
 	IsActive     bool      `gorm:"column:is_active"`
 }
+
+type UserTokenModel struct {
+	ID           string `gorm:"type:uuid;default:gen_random_uuid();primaryKey;column:id"`
+	UserID       string `gorm:"column:user_id"`
+	RefreshToken string `gorm:"column:refresh_token"`
+}
