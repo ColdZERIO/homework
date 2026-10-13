@@ -82,6 +82,7 @@ func (h *UserHandler) Login(w http.ResponseWriter, r *http.Request) {
 	})
 
 	// сделать хранение в БД!!!
+
 	// http.SetCookie(w, &http.Cookie{
 	// 	Name:     "refresh_token",
 	// 	Value:    refreshToken,
@@ -95,6 +96,7 @@ func (h *UserHandler) Login(w http.ResponseWriter, r *http.Request) {
 	err = h.service.UpdateRefreshToken(r.Context(), userReq.ID, refreshToken)
 	if err != nil {
 		jsonResponseErr(w, http.StatusInternalServerError, "cant add refresh token to database")
+		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -108,7 +110,7 @@ func (h *UserHandler) RefreshToken(w http.ResponseWriter, r *http.Request) {
 	// 	http.Error(w, "refresh token required", http.StatusUnauthorized)
 	// 	return
 	// }
-	
+
 	var user FindUserRequest
 
 	token, err := h.service.GetRefreshToken(r.Context(), user.ID)
@@ -125,7 +127,13 @@ func (h *UserHandler) RefreshToken(w http.ResponseWriter, r *http.Request) {
 
 	newAccessToken, err := auth.GenerateAccessToken(claims.ID, claims.Role)
 	if err != nil {
-		http.Error(w, "failed to create token", http.StatusUnauthorized)
+		http.Error(w, "failed to update access token", http.StatusUnauthorized)
+		return
+	}
+
+	newRefreshToken, err := auth.GenerateRefreshToken(claims.ID, claims.Role)
+	if err != nil {
+		http.Error(w, "failed to update refresh token", http.StatusUnauthorized)
 		return
 	}
 
@@ -140,6 +148,11 @@ func (h *UserHandler) RefreshToken(w http.ResponseWriter, r *http.Request) {
 	})
 
 	// сделать новый рефреш токен
+	err = h.service.UpdateRefreshToken(r.Context(), user.ID, newRefreshToken)
+	if err != nil {
+		jsonResponseErr(w, http.StatusInternalServerError, "cant add refresh token to database")
+		return
+	}
 
 	w.WriteHeader(http.StatusOK)
 }
