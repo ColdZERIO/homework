@@ -2,9 +2,9 @@ package auth
 
 import (
 	"context"
+	"encoding/json"
+	"homework/internal/domain"
 	"net/http"
-
-	"github.com/google/uuid"
 )
 
 type contextKey string
@@ -13,8 +13,8 @@ const (
 	ContextKeyUserID contextKey = "userID"
 )
 
-//CheckAccessTokenMiddleware()
-func AuthMiddleware(next http.HandlerFunc) http.HandlerFunc {
+// CheckAccessTokenMiddleware()
+func CheckAccessTokenMiddleware(next http.HandlerFunc) http.HandlerFunc {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		cookie, err := r.Cookie("access_token")
 		if err != nil {
@@ -28,15 +28,22 @@ func AuthMiddleware(next http.HandlerFunc) http.HandlerFunc {
 			return
 		}
 
-		userID, err := uuid.Parse(claims.ID)
-		if  err != nil {
+		// Проверка и сравнение ID и Роли
+
+		var user domain.UserRequest
+
+		err = json.NewDecoder(r.Body).Decode(&user)
+		if err != nil {
+			http.Error(w, "cant read json", http.StatusBadRequest)
+			return
+		}
+
+		if claims.ID != user.ID && claims.Role != user.Role {
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 			return
 		}
 
-		// Проверка и сравнение ID и Роли
-
-		ctx := context.WithValue(r.Context(), ContextKeyUserID, userID.String())
+		ctx := context.WithValue(r.Context(), ContextKeyUserID, claims.ID)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
