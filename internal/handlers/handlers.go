@@ -71,6 +71,7 @@ func (h *UserHandler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Бэк не отдает токены в куки, отдаем их через Encoder (access и refresh)
 	http.SetCookie(w, &http.Cookie{
 		Name:     "access_token",
 		Value:    accessToken,
@@ -125,34 +126,24 @@ func (h *UserHandler) RefreshToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	newAccessToken, err := auth.GenerateAccessToken(claims.ID, claims.Role)
+	//Проверить не отозван ли токен
+
+	accessToken, err := auth.GenerateAccessToken(claims.ID, claims.Role)
 	if err != nil {
 		http.Error(w, "failed to update access token", http.StatusUnauthorized)
 		return
 	}
 
-	newRefreshToken, err := auth.GenerateRefreshToken(claims.ID, claims.Role)
-	if err != nil {
-		http.Error(w, "failed to update refresh token", http.StatusUnauthorized)
-		return
-	}
-
+	// json Encoder
 	http.SetCookie(w, &http.Cookie{
 		Name:     "access_token",
-		Value:    newAccessToken,
+		Value:    accessToken,
 		Path:     "/",
 		HttpOnly: true,
 		Secure:   false,
 		SameSite: http.SameSiteLaxMode,
 		MaxAge:   15,
 	})
-
-	// сделать новый рефреш токен
-	err = h.service.UpdateRefreshToken(r.Context(), user.ID, newRefreshToken)
-	if err != nil {
-		jsonResponseErr(w, http.StatusInternalServerError, "cant add refresh token to database")
-		return
-	}
 
 	w.WriteHeader(http.StatusOK)
 }

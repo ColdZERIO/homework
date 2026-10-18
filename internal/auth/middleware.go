@@ -13,6 +13,7 @@ const (
 	ContextKeyUserID contextKey = "userID"
 )
 
+//CheckAccessTokenMiddleware()
 func AuthMiddleware(next http.HandlerFunc) http.HandlerFunc {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		cookie, err := r.Cookie("access_token")
@@ -32,6 +33,8 @@ func AuthMiddleware(next http.HandlerFunc) http.HandlerFunc {
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 			return
 		}
+
+		// Проверка и сравнение ID и Роли
 
 		ctx := context.WithValue(r.Context(), ContextKeyUserID, userID.String())
 		next.ServeHTTP(w, r.WithContext(ctx))
