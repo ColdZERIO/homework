@@ -11,5 +11,11 @@ CREATE TABLE IF NOT EXISTS users (
     is_active BOOLEAN NOT NULL DEFAULT TRUE
 );
 
+CREATE TABLE user_token (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES users(id),
+    refresh_token TEXT NOT NULL UNIQUE DEFAULT ''
+);
+
 CREATE INDEX IF NOT EXISTS login_index ON users(login);
 CREATE INDEX IF NOT EXISTS email_index ON users(email);

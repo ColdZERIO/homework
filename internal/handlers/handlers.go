@@ -10,10 +10,10 @@ import (
 )
 
 type UserHandler struct {
-	service services.UserService
+	service services.Service
 }
 
-func NewUserHandler(service services.UserService, logger *slog.Logger) *UserHandler {
+func NewUserHandler(service services.Service, logger *slog.Logger) *UserHandler {
 	return &UserHandler{
 		service: service,
 	}
@@ -59,31 +59,93 @@ func (h *UserHandler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	token, err := auth.GenerateJWT(user.ID, user.Role)
+	accessToken, err := auth.GenerateAccessToken(user.ID, user.Role)
 	if err != nil {
-		jsonResponseErr(w, http.StatusInternalServerError, "cant generate token")
+		jsonResponseErr(w, http.StatusInternalServerError, "cant generate access token")
 		return
 	}
 
+	refreshToken, err := auth.GenerateRefreshToken(user.ID, user.Role)
+	if err != nil {
+		jsonResponseErr(w, http.StatusInternalServerError, "cant generate refresh token")
+		return
+	}
+
+	// Бэк не отдает токены в куки, отдаем их через Encoder (access и refresh)
 	http.SetCookie(w, &http.Cookie{
 		Name:     "access_token",
-		Value:    token,
+		Value:    accessToken,
 		Path:     "/",
-		Expires:  time.Now().Add(24 * time.Hour),
+		Expires:  time.Now().Add(15 * time.Minute),
 		HttpOnly: true,
+		Secure:   false,
 		SameSite: http.SameSiteLaxMode,
 	})
 
+	// сделать хранение в БД!!!
+
+	// http.SetCookie(w, &http.Cookie{
+	// 	Name:     "refresh_token",
+	// 	Value:    refreshToken,
+	// 	Path:     "/",
+	// 	Expires:  time.Now().Add(7 * 24 * time.Hour),
+	// 	HttpOnly: true,
+	// 	Secure:   false,
+	// 	SameSite: http.SameSiteLaxMode,
+	// })
+
+	err = h.service.UpdateRefreshToken(r.Context(), userReq.ID, refreshToken)
+	if err != nil {
+		jsonResponseErr(w, http.StatusInternalServerError, "cant add refresh token to database")
+		return
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]any{
-		"user": PersistUserResponse{
-			ID:    user.ID,
-			Login: user.Login,
-			Name:  user.Name,
-			Email: user.Email,
-		},
+	json.NewEncoder(w).Encode("authentication was successful")
+}
+
+func (h *UserHandler) RefreshToken(w http.ResponseWriter, r *http.Request) {
+	// cookie, err := r.Cookie("refresh_token")
+	// if err != nil {
+	// 	http.Error(w, "refresh token required", http.StatusUnauthorized)
+	// 	return
+	// }
+
+	var user FindUserRequest
+
+	token, err := h.service.GetRefreshToken(r.Context(), user.ID)
+	if err != nil {
+		http.Error(w, "cant get token from DB", http.StatusUnauthorized)
+		return
+	}
+
+	claims, err := auth.ParseToken(token, auth.RefreshToken)
+	if err != nil {
+		http.Error(w, "invalid refresh token", http.StatusUnauthorized)
+		return
+	}
+
+	//Проверить не отозван ли токен
+
+	accessToken, err := auth.GenerateAccessToken(claims.ID, claims.Role)
+	if err != nil {
+		http.Error(w, "failed to update access token", http.StatusUnauthorized)
+		return
+	}
+
+	// json Encoder
+	http.SetCookie(w, &http.Cookie{
+		Name:     "access_token",
+		Value:    accessToken,
+		Path:     "/",
+		HttpOnly: true,
+		Secure:   false,
+		SameSite: http.SameSiteLaxMode,
+		MaxAge:   15,
 	})
+
+	w.WriteHeader(http.StatusOK)
 }
 
 func (h *UserHandler) Find(w http.ResponseWriter, r *http.Request) {
