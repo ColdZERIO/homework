@@ -19,7 +19,7 @@ func (s *Storage) AddRefreshToken(ctx context.Context, userID string, tokenStrin
 	}
 
 	err := s.db.WithContext(ctx).Transaction(func(db *gorm.DB) error {
-		err := db.Model(&token).Where("user_id = ?", userID).Update("is_active = ?", false).Error
+		err := db.Model(&UserTokenModel{}).Where("user_id = ?", userID).Update("is_active = ?", false).Error
 		if err != nil {
 			return err
 		}
