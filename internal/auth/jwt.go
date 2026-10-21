@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"errors"
 	"os"
 	"time"
 
@@ -51,9 +52,7 @@ func GenerateRefreshToken(userID, role string) (string, error) {
 	return token.SignedString([]byte(os.Getenv("REFRESH_KEY")))
 }
 
-func ParseToken(tokenString string, expectedType jwtType) (*Claims, error) {
-	accessKey := []byte(os.Getenv("ACCESS_KEY"))
-
+func ParseToken(tokenString string, expectedType jwtType, secret []byte) (*Claims, error) {
 	token, err := jwt.ParseWithClaims(
 		tokenString,
 		&Claims{},
@@ -62,7 +61,7 @@ func ParseToken(tokenString string, expectedType jwtType) (*Claims, error) {
 				return nil, jwt.ErrInvalidKey
 			}
 
-			return accessKey, nil
+			return secret, nil
 		},
 	)
 
@@ -77,6 +76,33 @@ func ParseToken(tokenString string, expectedType jwtType) (*Claims, error) {
 
 	if claims.Type != expectedType {
 		return nil, jwt.ErrInvalidKeyType
+	}
+
+	return claims, nil
+}
+
+func ValidateToken(tokenString string, secret []byte) (*jwt.RegisteredClaims, error) {
+	claims := &jwt.RegisteredClaims{}
+
+	token, err := jwt.ParseWithClaims(
+		tokenString,
+		claims,
+		func(token *jwt.Token) (any, error) {
+			if token.Method != jwt.SigningMethodHS256 {
+				return nil, errors.New("invalid signing method")
+			}
+
+			return secret, nil
+		},
+		jwt.WithValidMethods([]string{"HS256"}),
+	)
+
+	if err != nil {
+		return nil, err
+	}
+
+	if !token.Valid {
+		return nil, errors.New("invalid token")
 	}
 
 	return claims, nil

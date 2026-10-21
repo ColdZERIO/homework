@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"homework/internal/domain"
 	"net/http"
+	"os"
 )
 
 type contextKey string
@@ -13,7 +14,6 @@ const (
 	ContextKeyUserID contextKey = "userID"
 )
 
-// CheckAccessTokenMiddleware()
 func CheckAccessTokenMiddleware(next http.HandlerFunc) http.HandlerFunc {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		cookie, err := r.Cookie("access_token")
@@ -22,7 +22,7 @@ func CheckAccessTokenMiddleware(next http.HandlerFunc) http.HandlerFunc {
 			return
 		}
 
-		claims, err := ParseToken(cookie.Value, AccessToken)
+		claims, err := ParseToken(cookie.Value, AccessToken, []byte(os.Getenv("ACCESS_TOKEN")))
 		if err != nil {
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 			return

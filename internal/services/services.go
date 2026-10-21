@@ -14,7 +14,7 @@ type Service interface {
 	Find(ctx context.Context, userID string) (storage.UserModel, error)
 	GetList(ctx context.Context, limit, offset int, where, orderby string) ([]storage.UserModel, error)
 	CheckPassword(ctx context.Context, login, password string) (storage.UserModel, error)
-	UpdateRefreshToken(ctx context.Context, userID string, tokenString string) error
+	AddRefreshToken(ctx context.Context, userID string, tokenString string) error
 	GetRefreshToken(ctx context.Context, userID string) (string, error)
 }
 

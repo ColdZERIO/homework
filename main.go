@@ -20,8 +20,8 @@ import (
 	"github.com/patrickmn/go-cache"
 )
 
-// JWT Прописать refresh, добавить роль в claims (проверка ролей и доступа)
-// Удалить логику с куки и вернуть json ответ refresh and access
+// done JWT Прописать refresh, добавить роль в claims (проверка ролей и доступа)
+// done Удалить логику с куки и вернуть json ответ refresh and access
 // Добавить в колонки user_token Время жизни токена и отозван bool
 // Логику обновления токена в БД поменять на Добавление
 // Дописать Refresh ручку

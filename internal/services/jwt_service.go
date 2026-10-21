@@ -2,8 +2,8 @@ package services
 
 import "context"
 
-func (s *UserServices) UpdateRefreshToken(ctx context.Context, userID string, tokenString string)  error {
-	err := s.storage.UpdateRefreshToken(ctx, userID, tokenString)
+func (s *UserServices) AddRefreshToken(ctx context.Context, userID string, tokenString string)  error {
+	err := s.storage.AddRefreshToken(ctx, userID, tokenString)
 	if err != nil {
 		return err
 	}

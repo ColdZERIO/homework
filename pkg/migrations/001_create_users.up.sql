@@ -14,7 +14,9 @@ CREATE TABLE IF NOT EXISTS users (
 CREATE TABLE user_token (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL REFERENCES users(id),
-    refresh_token TEXT NOT NULL UNIQUE DEFAULT ''
+    refresh_token TEXT NOT NULL UNIQUE DEFAULT '',
+    expires_at TIMESTAMP NOT NULL,
+    is_active BOOLEAN NOT NULL DEFAULT FALSE
 );
 
 CREATE INDEX IF NOT EXISTS login_index ON users(login);

@@ -6,7 +6,7 @@ import (
 	"homework/internal/services"
 	"log/slog"
 	"net/http"
-	"time"
+	"os"
 )
 
 type UserHandler struct {
@@ -72,29 +72,12 @@ func (h *UserHandler) Login(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Бэк не отдает токены в куки, отдаем их через Encoder (access и refresh)
-	http.SetCookie(w, &http.Cookie{
-		Name:     "access_token",
-		Value:    accessToken,
-		Path:     "/",
-		Expires:  time.Now().Add(15 * time.Minute),
-		HttpOnly: true,
-		Secure:   false,
-		SameSite: http.SameSiteLaxMode,
+
+	err = json.NewEncoder(w).Encode(map[string]string{
+		string(auth.AccessToken): accessToken,
 	})
 
-	// сделать хранение в БД!!!
-
-	// http.SetCookie(w, &http.Cookie{
-	// 	Name:     "refresh_token",
-	// 	Value:    refreshToken,
-	// 	Path:     "/",
-	// 	Expires:  time.Now().Add(7 * 24 * time.Hour),
-	// 	HttpOnly: true,
-	// 	Secure:   false,
-	// 	SameSite: http.SameSiteLaxMode,
-	// })
-
-	err = h.service.UpdateRefreshToken(r.Context(), userReq.ID, refreshToken)
+	err = h.service.AddRefreshToken(r.Context(), userReq.ID, refreshToken)
 	if err != nil {
 		jsonResponseErr(w, http.StatusInternalServerError, "cant add refresh token to database")
 		return
@@ -106,12 +89,6 @@ func (h *UserHandler) Login(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *UserHandler) RefreshToken(w http.ResponseWriter, r *http.Request) {
-	// cookie, err := r.Cookie("refresh_token")
-	// if err != nil {
-	// 	http.Error(w, "refresh token required", http.StatusUnauthorized)
-	// 	return
-	// }
-
 	var user FindUserRequest
 
 	token, err := h.service.GetRefreshToken(r.Context(), user.ID)
@@ -120,13 +97,15 @@ func (h *UserHandler) RefreshToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	claims, err := auth.ParseToken(token, auth.RefreshToken)
+	claims, err := auth.ParseToken(token, auth.RefreshToken, []byte(os.Getenv("REFRESH_KEY")))
 	if err != nil {
 		http.Error(w, "invalid refresh token", http.StatusUnauthorized)
 		return
 	}
 
 	//Проверить не отозван ли токен
+
+	
 
 	accessToken, err := auth.GenerateAccessToken(claims.ID, claims.Role)
 	if err != nil {
@@ -135,14 +114,8 @@ func (h *UserHandler) RefreshToken(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// json Encoder
-	http.SetCookie(w, &http.Cookie{
-		Name:     "access_token",
-		Value:    accessToken,
-		Path:     "/",
-		HttpOnly: true,
-		Secure:   false,
-		SameSite: http.SameSiteLaxMode,
-		MaxAge:   15,
+	err = json.NewEncoder(w).Encode(map[string]string{
+		string(auth.AccessToken): accessToken,
 	})
 
 	w.WriteHeader(http.StatusOK)
@@ -210,7 +183,7 @@ func (h *UserHandler) Update(w http.ResponseWriter, r *http.Request) {
 
 	err := json.NewDecoder(r.Body).Decode(&user)
 	if err != nil {
-		jsonResponseErr(w, http.StatusBadRequest, "invalid body rec")
+	jsonResponseErr(w, http.StatusBadRequest, "invalid body rec")
 		return
 	}
 
