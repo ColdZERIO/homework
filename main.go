@@ -2,10 +2,8 @@ package main
 
 import (
 	"context"
-	handler "homework/internal/handlers"
+	"homework/internal/app"
 	"homework/internal/logger"
-	"homework/internal/services"
-	"homework/internal/storage"
 	postgres "homework/pkg/db"
 	"log"
 	"log/slog"
@@ -22,12 +20,12 @@ import (
 
 // done JWT Прописать refresh, добавить роль в claims (проверка ролей и доступа)
 // done Удалить логику с куки и вернуть json ответ refresh and access
-// Добавить в колонки user_token Время жизни токена и отозван bool
-// Логику обновления токена в БД поменять на Добавление
-// Дописать Refresh ручку
-// Logger объявить глобально
-// Переименовать обратно интерфейс слоев, структуры перенести в application
-// Пересмотреть структуру, роутер перенести в internal
+// done Добавить в колонки user_token Время жизни токена и отозван bool
+// done Логику обновления токена в БД поменять на Добавление
+// done Дописать Refresh ручку
+// done Logger объявить глобально (Не рекомендуют)
+// done Переименовать обратно интерфейс слоев, структуры перенести в application
+// done Пересмотреть структуру, роутер перенести в internal
 
 func main() {
 	err := godotenv.Load()
@@ -39,7 +37,7 @@ func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	cache := cache.Cache{} // Перенос в Ручки
+	cache := cache.Cache{}
 
 	appLogger := logger.New(logger.Config{
 		Level:     slog.LevelInfo,
@@ -62,12 +60,7 @@ func main() {
 		)
 	}
 
-	// Перенести storage и services в application
-	storage := storage.NewUserStorage(db, &cache, appLogger)
-	service := services.NewUserServices(storage, appLogger)
-	handler := handler.NewUserHandler(service, appLogger)
-
-	router := routers(handler)
+	router := app.NewApp(db, &cache, appLogger)
 
 	httpServer := &http.Server{
 		Addr:    ":8080",

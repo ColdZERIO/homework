@@ -4,16 +4,15 @@ import (
 	"encoding/json"
 	"homework/internal/auth"
 	"homework/internal/services"
-	"log/slog"
 	"net/http"
 	"os"
 )
 
 type UserHandler struct {
-	service services.Service
+	service services.UserService
 }
 
-func NewUserHandler(service services.Service, logger *slog.Logger) *UserHandler {
+func NewUserHandler(service services.UserService) *UserHandler {
 	return &UserHandler{
 		service: service,
 	}
@@ -104,8 +103,10 @@ func (h *UserHandler) RefreshToken(w http.ResponseWriter, r *http.Request) {
 	}
 
 	//Проверить не отозван ли токен
-
-	
+	err = h.service.CheckRefreshToken(token)
+	if err != nil {
+		http.Error(w, "token is not valid", http.StatusUnauthorized)
+	}
 
 	accessToken, err := auth.GenerateAccessToken(claims.ID, claims.Role)
 	if err != nil {
@@ -183,7 +184,7 @@ func (h *UserHandler) Update(w http.ResponseWriter, r *http.Request) {
 
 	err := json.NewDecoder(r.Body).Decode(&user)
 	if err != nil {
-	jsonResponseErr(w, http.StatusBadRequest, "invalid body rec")
+		jsonResponseErr(w, http.StatusBadRequest, "invalid body rec")
 		return
 	}
 
