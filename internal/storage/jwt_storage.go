@@ -3,15 +3,43 @@ package storage
 import (
 	"context"
 	"log/slog"
+	"time"
+
+	"github.com/google/uuid"
+	"gorm.io/gorm"
 )
 
-func (s *Storage) UpdateRefreshToken(ctx context.Context, userID string, tokenString string) error {
-	var token UserTokenModel
+func (s *Storage) AddRefreshToken(ctx context.Context, userID string, tokenString string) error {
+	var token = UserTokenModel{
+		ID:           uuid.New().String(),
+		UserID:       userID,
+		RefreshToken: tokenString,
+		ExpiredAt:    time.Now().Add(7 * 24 * time.Hour),
+		IsActive:     true,
+	}
 
-	err := s.db.WithContext(ctx).Model(&token).Where("id = ?", userID).Update("refresh_token", tokenString).Error
+	err := s.db.WithContext(ctx).Transaction(func(db *gorm.DB) error {
+		err := db.Model(&UserTokenModel{}).Where("user_id = ?", userID).Update("is_active", false).Error
+		if err != nil {
+			s.logger.Error(
+				"token base are empty...may by",
+				slog.String("user_id", userID),
+				slog.Any("error", err),
+			)
+			return err
+		}
+
+		err = db.Create(&token).Error
+		if err != nil {
+			return err
+		}
+
+		return nil
+	})
+
 	if err != nil {
 		s.logger.Error(
-			"failed to add token",
+			"failed to add new refresh token",
 			slog.String("user_id", userID),
 			slog.Any("error", err),
 		)
@@ -20,12 +48,13 @@ func (s *Storage) UpdateRefreshToken(ctx context.Context, userID string, tokenSt
 	}
 
 	return nil
+
 }
 
 func (s *Storage) GetRefreshToken(ctx context.Context, userID string) (string, error) {
 	var token UserTokenModel
 
-	err := s.db.WithContext(ctx).First(&token, userID).Error
+	err := s.db.WithContext(ctx).Where("user_id = ? AND is_active = ? AND expired_at > ?", userID, true, time.Now()).Order("expired_at DESC").First(&token).Error
 	if err != nil {
 		s.logger.Error(
 			"failed to get refresh token",
