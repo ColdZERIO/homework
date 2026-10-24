@@ -19,12 +19,17 @@ func (s *Storage) AddRefreshToken(ctx context.Context, userID string, tokenStrin
 	}
 
 	err := s.db.WithContext(ctx).Transaction(func(db *gorm.DB) error {
-		err := db.Model(&UserTokenModel{}).Where("user_id = ?", userID).Update("is_active = ?", false).Error
+		err := db.Model(&UserTokenModel{}).Where("user_id = ?", userID).Update("is_active", false).Error
 		if err != nil {
+			s.logger.Error(
+				"token base are empty...may by",
+				slog.String("user_id", userID),
+				slog.Any("error", err),
+			)
 			return err
 		}
 
-		err = s.db.WithContext(ctx).Create(&token).Error
+		err = db.Create(&token).Error
 		if err != nil {
 			return err
 		}
@@ -49,7 +54,7 @@ func (s *Storage) AddRefreshToken(ctx context.Context, userID string, tokenStrin
 func (s *Storage) GetRefreshToken(ctx context.Context, userID string) (string, error) {
 	var token UserTokenModel
 
-	err := s.db.WithContext(ctx).First(&token, userID).Error
+	err := s.db.WithContext(ctx).Where("user_id = ? AND is_active = ? AND expired_at > ?", userID, true, time.Now()).Order("expired_at DESC").First(&token).Error
 	if err != nil {
 		s.logger.Error(
 			"failed to get refresh token",

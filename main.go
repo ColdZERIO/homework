@@ -38,7 +38,10 @@ func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	cache := cache.Cache{}
+	cache := cache.New(
+		5*time.Minute,
+		10*time.Minute,
+	)
 
 	appLogger := logger.New(logger.Config{
 		Level:     slog.LevelInfo,
@@ -61,7 +64,7 @@ func main() {
 		)
 	}
 
-	router := app.NewApp(db, &cache, appLogger)
+	router := app.NewApp(db, cache, appLogger)
 
 	httpServer := &http.Server{
 		Addr:    ":8080",

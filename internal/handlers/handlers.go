@@ -58,6 +58,10 @@ func (h *UserHandler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if !user.IsActive {
+		jsonResponseErr(w, http.StatusUnauthorized, "user is inactive")
+		return
+	}
 	accessToken, err := auth.GenerateAccessToken(user.ID, user.Role)
 	if err != nil {
 		jsonResponseErr(w, http.StatusInternalServerError, "cant generate access token")
@@ -70,58 +74,58 @@ func (h *UserHandler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Бэк не отдает токены в куки, отдаем их через Encoder (access и refresh)
-
-	err = json.NewEncoder(w).Encode(map[string]string{
-		string(auth.AccessToken): accessToken,
-	})
-
-	err = h.service.AddRefreshToken(r.Context(), userReq.ID, refreshToken)
+	err = h.service.AddRefreshToken(r.Context(), user.ID, refreshToken)
 	if err != nil {
 		jsonResponseErr(w, http.StatusInternalServerError, "cant add refresh token to database")
 		return
 	}
-
 	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode("authentication was successful")
+	json.NewEncoder(w).Encode(map[string]string{
+		"access_token":  accessToken,
+		"refresh_token": refreshToken,
+		"token_type":    "Bearer",
+	})
 }
 
 func (h *UserHandler) RefreshToken(w http.ResponseWriter, r *http.Request) {
-	var user FindUserRequest
-
-	token, err := h.service.GetRefreshToken(r.Context(), user.ID)
-	if err != nil {
-		http.Error(w, "cant get token from DB", http.StatusUnauthorized)
+	var request struct {
+		RefreshToken string `json:"refresh_token"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&request); err != nil || request.RefreshToken == "" {
+		jsonResponseErr(w, http.StatusBadRequest, "refresh_token is required")
 		return
 	}
-
-	claims, err := auth.ParseToken(token, auth.RefreshToken, []byte(os.Getenv("REFRESH_KEY")))
-	if err != nil {
-		http.Error(w, "invalid refresh token", http.StatusUnauthorized)
+	secret := os.Getenv("REFRESH_KEY")
+	if secret == "" {
+		jsonResponseErr(w, http.StatusInternalServerError, "Server configuration error")
 		return
 	}
-
-	//Проверить не отозван ли токен
-	err = h.service.CheckRefreshToken(token)
+	claims, err := auth.ParseToken(request.RefreshToken, auth.RefreshToken, []byte(secret))
 	if err != nil {
-		http.Error(w, "token is not valid", http.StatusUnauthorized)
-	}
-
-	accessToken, err := auth.GenerateAccessToken(claims.ID, claims.Role)
-	if err != nil {
-		http.Error(w, "failed to update access token", http.StatusUnauthorized)
+		jsonResponseErr(w, http.StatusUnauthorized, "invalid refresh token")
 		return
 	}
-
-	// json Encoder
-	err = json.NewEncoder(w).Encode(map[string]string{
-		string(auth.AccessToken): accessToken,
+	storedToken, err := h.service.GetRefreshToken(r.Context(), claims.UserID)
+	if err != nil || storedToken != request.RefreshToken {
+		jsonResponseErr(w, http.StatusUnauthorized, "refresh token is revoked or expired")
+		return
+	}
+	user, err := h.service.Find(r.Context(), claims.UserID)
+	if err != nil || !user.IsActive {
+		jsonResponseErr(w, http.StatusUnauthorized, "user is inactive or missing")
+		return
+	}
+	accessToken, err := auth.GenerateAccessToken(user.ID, user.Role)
+	if err != nil {
+		jsonResponseErr(w, http.StatusInternalServerError, "failed to update access token")
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{
+		"access_token": accessToken,
+		"token_type":   "Bearer",
 	})
-
-	w.WriteHeader(http.StatusOK)
 }
-
 func (h *UserHandler) Find(w http.ResponseWriter, r *http.Request) {
 	var user FindUserRequest
 
@@ -136,9 +140,14 @@ func (h *UserHandler) Find(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if !auth.CanAccessUser(r, user.ID) {
+		jsonResponseErr(w, http.StatusForbidden, "access denied")
+		return
+	}
 	searchUser, err := h.service.Find(r.Context(), user.ID)
 	if err != nil {
 		jsonResponseErr(w, http.StatusBadRequest, "can`t fiend user by id")
+		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -157,11 +166,19 @@ func (h *UserHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	var user DeleteUserRequest
 
 	err := json.NewDecoder(r.Body).Decode(&user)
+	if err != nil {
+		jsonResponseErr(w, http.StatusBadRequest, "invalid body request")
+		return
+	}
 	if user.ID == "" {
 		jsonResponseErr(w, http.StatusBadRequest, "id is required")
 		return
 	}
 
+	if !auth.CanAccessUser(r, user.ID) {
+		jsonResponseErr(w, http.StatusForbidden, "access denied")
+		return
+	}
 	userDeleted, err := h.service.Delete(r.Context(), user.ID)
 	if err != nil {
 		jsonResponseErr(w, http.StatusInternalServerError, "cant delete from DB")
@@ -188,6 +205,14 @@ func (h *UserHandler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if user.ID == "" {
+		jsonResponseErr(w, http.StatusBadRequest, "id is required")
+		return
+	}
+	if !auth.CanAccessUser(r, user.ID) {
+		jsonResponseErr(w, http.StatusForbidden, "access denied")
+		return
+	}
 	userUpdated, err := h.service.Persist(r.Context(), user.ID, user.Login, user.Password, user.Name, user.Email)
 	if err != nil {
 		jsonResponseErr(w, http.StatusInternalServerError, "cant update in DB")

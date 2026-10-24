@@ -24,12 +24,13 @@ func NewApp(db *gorm.DB, cache *cache.Cache, logger *slog.Logger) http.Handler {
 
 	router := chi.NewRouter()
 
-	router.Post("/create", auth.CheckAccessTokenMiddleware(handler.Create)) // Админ создает пользователя
+	router.Post("/create", auth.CheckAccessTokenMiddleware(auth.RequireAdmin(handler.Create))) // Админ создает пользователя
 	router.Post("/login", handler.Login)
+	router.Post("/refresh", handler.RefreshToken)
 	router.Get("/get", auth.CheckAccessTokenMiddleware(handler.Find))
 	router.Delete("/delete", auth.CheckAccessTokenMiddleware(handler.Delete))
 	router.Put("/update", auth.CheckAccessTokenMiddleware(handler.Update))
-	router.Get("/list", auth.CheckAccessTokenMiddleware(handler.FindUserList))
+	router.Get("/list", auth.CheckAccessTokenMiddleware(auth.RequireAdmin(handler.FindUserList)))
 
 	return router
 }

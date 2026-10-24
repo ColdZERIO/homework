@@ -2,48 +2,54 @@ package auth
 
 import (
 	"context"
-	"encoding/json"
-	"homework/internal/domain"
 	"net/http"
 	"os"
+	"strings"
 )
 
 type contextKey string
 
 const (
 	ContextKeyUserID contextKey = "userID"
+	ContextKeyRole   contextKey = "role"
 )
 
 func CheckAccessTokenMiddleware(next http.HandlerFunc) http.HandlerFunc {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		cookie, err := r.Cookie("access_token")
+		parts := strings.Fields(r.Header.Get("Authorization"))
+		if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") {
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return
+		}
+
+		secret := os.Getenv("ACCESS_KEY")
+		if secret == "" {
+			http.Error(w, "Server configuration error", http.StatusInternalServerError)
+			return
+		}
+		claims, err := ParseToken(parts[1], AccessToken, []byte(secret))
 		if err != nil {
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 			return
 		}
 
-		claims, err := ParseToken(cookie.Value, AccessToken, []byte(os.Getenv("ACCESS_TOKEN")))
-		if err != nil {
-			http.Error(w, "Unauthorized", http.StatusUnauthorized)
-			return
-		}
-
-		// Проверка и сравнение ID и Роли
-
-		var user domain.UserRequest
-
-		err = json.NewDecoder(r.Body).Decode(&user)
-		if err != nil {
-			http.Error(w, "cant read json", http.StatusBadRequest)
-			return
-		}
-
-		if claims.ID != user.ID && claims.Role != user.Role {
-			http.Error(w, "Unauthorized", http.StatusUnauthorized)
-			return
-		}
-
-		ctx := context.WithValue(r.Context(), ContextKeyUserID, claims.ID)
+		ctx := context.WithValue(r.Context(), ContextKeyUserID, claims.UserID)
+		ctx = context.WithValue(ctx, ContextKeyRole, claims.Role)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
+}
+
+func RequireAdmin(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Context().Value(ContextKeyRole) != "admin" {
+			http.Error(w, "Forbidden", http.StatusForbidden)
+			return
+		}
+		next(w, r)
+	}
+}
+
+func CanAccessUser(r *http.Request, userID string) bool {
+	callerID, ok := r.Context().Value(ContextKeyUserID).(string)
+	return ok && callerID != "" && (callerID == userID || r.Context().Value(ContextKeyRole) == "admin")
 }
