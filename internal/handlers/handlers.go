@@ -62,7 +62,14 @@ func (h *UserHandler) Login(w http.ResponseWriter, r *http.Request) {
 		jsonResponseErr(w, http.StatusUnauthorized, "user is inactive")
 		return
 	}
-	accessToken, err := auth.GenerateAccessToken(user.ID, user.Role)
+
+	userID, err := h.service.GetUserID(r.Context(), user.Login)
+	if err != nil {
+		jsonResponseErr(w, http.StatusInternalServerError, "cant get user id from DB")
+		return
+	}
+
+	accessToken, err := auth.GenerateAccessToken(userID, user.Role)
 	if err != nil {
 		jsonResponseErr(w, http.StatusInternalServerError, "cant generate access token")
 		return
@@ -179,20 +186,20 @@ func (h *UserHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		jsonResponseErr(w, http.StatusForbidden, "access denied")
 		return
 	}
-	userDeleted, err := h.service.Delete(r.Context(), user.ID)
+	id, err := h.service.Delete(r.Context(), user.ID)
 	if err != nil {
 		jsonResponseErr(w, http.StatusInternalServerError, "cant delete from DB")
 		return
 	}
 
+	userDeleted := DeleteUserResponse{
+		ID: id,
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(map[string]any{
-		"User deleted": DeleteUserResponse{
-			ID:    userDeleted.ID,
-			Login: userDeleted.Login,
-			Name:  userDeleted.Name,
-		},
+		"User deleted": userDeleted,
 	})
 }
 
@@ -238,15 +245,29 @@ func (h *UserHandler) FindUserList(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user, err := h.service.GetList(r.Context(), userReq.Limit, userReq.Offset, userReq.Where, userReq.OrderBy)
+	users, err := h.service.GetList(r.Context(), userReq.Limit, userReq.Offset, userReq.Where, userReq.OrderBy)
 	if err != nil {
 		jsonResponseErr(w, http.StatusInternalServerError, "cant get list from DB")
 		return
 	}
 
+	userResponse := FindUserListResponse{
+		Users: make([]FindUserResponse, len(users)),
+	}
+
+	for index, user := range users {
+		userResponse.Users[index] = FindUserResponse{
+			ID:        user.ID,
+			Login:     user.Login,
+			Name:      user.Name,
+			Email:     user.Email,
+			CreatedAt: user.CreatedAt,
+		}
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(map[string]any{
-		"Users": user,
+		"Users": userResponse.Users,
 	})
 }

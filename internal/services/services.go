@@ -10,8 +10,9 @@ import (
 
 type UserService interface {
 	Persist(ctx context.Context, ID, login, password, name, email string) (storage.UserModel, error)
-	Delete(ctx context.Context, userID string) (storage.UserModel, error)
+	Delete(ctx context.Context, id string) (string, error)
 	Find(ctx context.Context, userID string) (storage.UserModel, error)
+	GetUserID(ctx context.Context, login string) (string, error)
 	GetList(ctx context.Context, limit, offset int, where, orderby string) ([]storage.UserModel, error)
 	CheckPassword(ctx context.Context, login, password string) (storage.UserModel, error)
 	AddRefreshToken(ctx context.Context, userID, tokenString string) error
@@ -65,7 +66,7 @@ func (s *Service) Persist(ctx context.Context, ID, login, password, name, email 
 }
 
 func (s *Service) CheckPassword(ctx context.Context, login, password string) (storage.UserModel, error) {
-	user, err := s.storage.AuthUser(ctx, login)
+	user, err := s.storage.GetUserID(ctx, login)
 	if err != nil {
 		s.logger.Debug(
 			"failed to get password from database",
@@ -90,8 +91,8 @@ func (s *Service) CheckPassword(ctx context.Context, login, password string) (st
 	return user, nil
 }
 
-func (s *Service) Delete(ctx context.Context, id string) (storage.UserModel, error) {
-	userDeleted, err := s.storage.Delete(ctx, id)
+func (s *Service) Delete(ctx context.Context, id string) (string, error) {
+	userID, err := s.storage.Delete(ctx, id)
 	if err != nil {
 		s.logger.Debug(
 			"failed to delete user",
@@ -99,10 +100,25 @@ func (s *Service) Delete(ctx context.Context, id string) (storage.UserModel, err
 			slog.Any("error", err),
 		)
 
-		return storage.UserModel{}, err
+		return "", err
 	}
 
-	return userDeleted, nil
+	return userID, nil
+}
+
+func (s *Service) GetUserID(ctx context.Context, login string) (string, error) {
+	user, err := s.storage.GetUserID(ctx, login)
+	if err != nil {
+		s.logger.Debug(
+			"failed to get user id from database",
+			slog.String("login", login),
+			slog.Any("error", err),
+		)
+
+		return "", err
+	}
+
+	return user.ID, nil
 }
 
 func (s *Service) Find(ctx context.Context, userID string) (storage.UserModel, error) {

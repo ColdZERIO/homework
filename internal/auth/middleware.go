@@ -14,7 +14,7 @@ const (
 	ContextKeyRole   contextKey = "role"
 )
 
-func CheckAccessTokenMiddleware(next http.HandlerFunc) http.HandlerFunc {
+func CheckAccessTokenMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		parts := strings.Fields(r.Header.Get("Authorization"))
 		if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") {
