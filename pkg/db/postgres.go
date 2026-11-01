@@ -53,6 +53,6 @@ func MigrationRun() error {
 	if err := m.Up(); err != nil && err != migrate.ErrNoChange {
 		return fmt.Errorf("rerun migration: %w", err)
 	}
-
+	
 	return nil
 }

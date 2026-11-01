@@ -2,11 +2,10 @@ package main
 
 import (
 	"context"
-	handler "homework/internal/handlers"
+	"homework/internal/app"
 	"homework/internal/logger"
-	"homework/internal/services"
-	"homework/internal/storage"
 	postgres "homework/pkg/db"
+
 	"log"
 	"log/slog"
 	"net/http"
@@ -20,15 +19,6 @@ import (
 	"github.com/patrickmn/go-cache"
 )
 
-// JWT Прописать refresh, добавить роль в claims (проверка ролей и доступа)
-// Удалить логику с куки и вернуть json ответ refresh and access
-// Добавить в колонки user_token Время жизни токена и отозван bool
-// Логику обновления токена в БД поменять на Добавление
-// Дописать Refresh ручку
-// Logger объявить глобально
-// Переименовать обратно интерфейс слоев, структуры перенести в application
-// Пересмотреть структуру, роутер перенести в internal
-
 func main() {
 	err := godotenv.Load()
 	if err != nil {
@@ -39,7 +29,10 @@ func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	cache := cache.Cache{} // Перенос в Ручки
+	c := cache.New(
+		5*time.Minute,
+		10*time.Minute,
+	)
 
 	appLogger := logger.New(logger.Config{
 		Level:     slog.LevelInfo,
@@ -62,12 +55,7 @@ func main() {
 		)
 	}
 
-	// Перенести storage и services в application
-	storage := storage.NewUserStorage(db, &cache, appLogger)
-	service := services.NewUserServices(storage, appLogger)
-	handler := handler.NewUserHandler(service, appLogger)
-
-	router := routers(handler)
+	router := app.NewApp(db, c, appLogger)
 
 	httpServer := &http.Server{
 		Addr:    ":8080",
@@ -105,9 +93,4 @@ func main() {
 			slog.Any("error", err),
 		)
 	}
-
-	appLogger.Info(
-		"server stopped",
-		slog.String("port", ":8080"), // ???
-	)
 }

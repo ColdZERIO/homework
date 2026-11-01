@@ -47,8 +47,6 @@ type DeleteUserRequest struct {
 
 type DeleteUserResponse struct {
 	ID    string `json:"id"`
-	Login string `json:"login"`
-	Name  string `json:"name"`
 }
 
 type UserTokenResponse struct {
