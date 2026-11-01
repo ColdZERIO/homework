@@ -19,17 +19,6 @@ import (
 	"github.com/patrickmn/go-cache"
 )
 
-// done JWT Прописать refresh, добавить роль в claims (проверка ролей и доступа)
-// done Удалить логику с куки и вернуть json ответ refresh and access
-// done Добавить в колонки user_token Время жизни токена и отозван bool
-// done Логику обновления токена в БД поменять на Добавление
-// done Дописать Refresh ручку
-// done Logger объявить глобально (Не рекомендуют)
-// done Переименовать обратно интерфейс слоев, структуры перенести в application
-// done Пересмотреть структуру, роутер перенести в internal
-
-
-
 func main() {
 	err := godotenv.Load()
 	if err != nil {
@@ -40,7 +29,7 @@ func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	cache := cache.New(
+	c := cache.New(
 		5*time.Minute,
 		10*time.Minute,
 	)
@@ -66,7 +55,7 @@ func main() {
 		)
 	}
 
-	router := app.NewApp(db, cache, appLogger)
+	router := app.NewApp(db, c, appLogger)
 
 	httpServer := &http.Server{
 		Addr:    ":8080",
@@ -104,9 +93,4 @@ func main() {
 			slog.Any("error", err),
 		)
 	}
-
-	appLogger.Info(
-		"server stopped",
-		slog.String("port", ":8080"), // ???
-	)
 }
