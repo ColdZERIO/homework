@@ -11,11 +11,11 @@ import (
 
 type UserStorage interface {
 	Persist(ctx context.Context, userDB UserModel) (UserModel, error)
-	Delete(ctx context.Context, id string) (UserModel, error)
+	Delete(ctx context.Context, id string) (string, error)
 	Find(ctx context.Context, id string) (UserModel, error)
+	GetUserID(ctx context.Context, login string) (UserModel, error)
 	GetList(ctx context.Context, limit, offset int, where, orderby string) ([]UserModel, error)
-	AuthUser(ctx context.Context, login string) (UserModel, error)
-	UpdateRefreshToken(ctx context.Context, userID string, tokenString string) error
+	AddRefreshToken(ctx context.Context, userID string, tokenString string) error
 	GetRefreshToken(ctx context.Context, userID string) (string, error)
 }
 
@@ -68,7 +68,7 @@ func (s *Storage) Persist(ctx context.Context, userModel UserModel) (UserModel, 
 	return userModel, nil
 }
 
-func (s *Storage) Delete(ctx context.Context, id string) (UserModel, error) {
+func (s *Storage) Delete(ctx context.Context, id string) (string, error) {
 	var userModel UserModel
 	key := KeyCacheID(id)
 
@@ -80,12 +80,12 @@ func (s *Storage) Delete(ctx context.Context, id string) (UserModel, error) {
 			slog.Any("error", err),
 		)
 
-		return UserModel{}, err
+		return "", err
 	}
 
 	s.cache.Delete(key)
 
-	return userModel, nil
+	return id, nil
 }
 
 func (s *Storage) Find(ctx context.Context, id string) (UserModel, error) {
@@ -102,7 +102,7 @@ func (s *Storage) Find(ctx context.Context, id string) (UserModel, error) {
 		s.cache.Delete(key)
 	}
 
-	err := s.db.WithContext(ctx).First(&userModel, id).Error
+	err := s.db.WithContext(ctx).First(&userModel, "id = ?", id).Error
 	if err != nil {
 		s.logger.Error(
 			"failed to find user from database",
@@ -118,10 +118,10 @@ func (s *Storage) Find(ctx context.Context, id string) (UserModel, error) {
 	return userModel, nil
 }
 
-func (s *Storage) AuthUser(ctx context.Context, login string) (UserModel, error) { // ???
+func (s *Storage) GetUserID(ctx context.Context, login string) (UserModel, error) {
 	var userModel UserModel
 
-	err := s.db.WithContext(ctx).First(&userModel, login).Error
+	err := s.db.WithContext(ctx).First(&userModel, "login = ?", login).Error
 	if err != nil {
 		s.logger.Debug(
 			"failed to auth user",

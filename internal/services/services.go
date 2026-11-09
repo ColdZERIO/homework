@@ -8,29 +8,31 @@ import (
 
 // Переписать структуры на параметры
 
-type Service interface {
+type UserService interface {
 	Persist(ctx context.Context, ID, login, password, name, email string) (storage.UserModel, error)
-	Delete(ctx context.Context, userID string) (storage.UserModel, error)
+	Delete(ctx context.Context, id string) (string, error)
 	Find(ctx context.Context, userID string) (storage.UserModel, error)
+	GetUserID(ctx context.Context, login string) (string, error)
 	GetList(ctx context.Context, limit, offset int, where, orderby string) ([]storage.UserModel, error)
 	CheckPassword(ctx context.Context, login, password string) (storage.UserModel, error)
-	UpdateRefreshToken(ctx context.Context, userID string, tokenString string) error
+	AddRefreshToken(ctx context.Context, userID, tokenString string) error
 	GetRefreshToken(ctx context.Context, userID string) (string, error)
+	CheckRefreshToken(tokenString string) error
 }
 
-type UserServices struct {
+type Service struct {
 	storage storage.UserStorage
 	logger  *slog.Logger
 }
 
-func NewUserServices(storage storage.UserStorage, logger *slog.Logger) *UserServices {
-	return &UserServices{
+func NewUserServices(storage storage.UserStorage, logger *slog.Logger) *Service {
+	return &Service{
 		storage: storage,
 		logger:  logger.With("layer", "services"),
 	}
 }
 
-func (s *UserServices) Persist(ctx context.Context, ID, login, password, name, email string) (storage.UserModel, error) {
+func (s *Service) Persist(ctx context.Context, ID, login, password, name, email string) (storage.UserModel, error) {
 	hashPassword, err := HashPassword(password)
 	if err != nil {
 		s.logger.Debug(
@@ -63,8 +65,8 @@ func (s *UserServices) Persist(ctx context.Context, ID, login, password, name, e
 	return user, nil
 }
 
-func (s *UserServices) CheckPassword(ctx context.Context, login, password string) (storage.UserModel, error) {
-	user, err := s.storage.AuthUser(ctx, login)
+func (s *Service) CheckPassword(ctx context.Context, login, password string) (storage.UserModel, error) {
+	user, err := s.storage.GetUserID(ctx, login)
 	if err != nil {
 		s.logger.Debug(
 			"failed to get password from database",
@@ -89,8 +91,8 @@ func (s *UserServices) CheckPassword(ctx context.Context, login, password string
 	return user, nil
 }
 
-func (s *UserServices) Delete(ctx context.Context, id string) (storage.UserModel, error) {
-	userDeleted, err := s.storage.Delete(ctx, id)
+func (s *Service) Delete(ctx context.Context, id string) (string, error) {
+	userID, err := s.storage.Delete(ctx, id)
 	if err != nil {
 		s.logger.Debug(
 			"failed to delete user",
@@ -98,13 +100,28 @@ func (s *UserServices) Delete(ctx context.Context, id string) (storage.UserModel
 			slog.Any("error", err),
 		)
 
-		return storage.UserModel{}, err
+		return "", err
 	}
 
-	return userDeleted, nil
+	return userID, nil
 }
 
-func (s *UserServices) Find(ctx context.Context, userID string) (storage.UserModel, error) {
+func (s *Service) GetUserID(ctx context.Context, login string) (string, error) {
+	user, err := s.storage.GetUserID(ctx, login)
+	if err != nil {
+		s.logger.Debug(
+			"failed to get user id from database",
+			slog.String("login", login),
+			slog.Any("error", err),
+		)
+
+		return "", err
+	}
+
+	return user.ID, nil
+}
+
+func (s *Service) Find(ctx context.Context, userID string) (storage.UserModel, error) {
 	user, err := s.storage.Find(ctx, userID)
 	if err != nil {
 		s.logger.Debug(
@@ -119,7 +136,7 @@ func (s *UserServices) Find(ctx context.Context, userID string) (storage.UserMod
 	return user, nil
 }
 
-func (s *UserServices) GetList(ctx context.Context, limit, offset int, where, orderby string) ([]storage.UserModel, error) {
+func (s *Service) GetList(ctx context.Context, limit, offset int, where, orderby string) ([]storage.UserModel, error) {
 	users, err := s.storage.GetList(ctx, limit, offset, where, orderby)
 	if err != nil {
 		s.logger.Debug(
