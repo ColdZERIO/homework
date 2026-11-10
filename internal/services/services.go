@@ -10,6 +10,7 @@ import (
 
 type UserService interface {
 	Persist(ctx context.Context, ID, login, password, name, email string) (storage.UserModel, error)
+	Update(ctx context.Context, ID string, login, password, name, email *string) (storage.UserModel, error)
 	Delete(ctx context.Context, id string) (string, error)
 	Find(ctx context.Context, userID string) (storage.UserModel, error)
 	GetUserID(ctx context.Context, login string) (string, error)
@@ -63,6 +64,33 @@ func (s *Service) Persist(ctx context.Context, ID, login, password, name, email 
 	}
 
 	return user, nil
+}
+
+func (s *Service) Update(ctx context.Context, ID string, login, password, name, email *string) (storage.UserModel, error) {
+	updateData := make(map[string]any)
+
+	if login != nil {
+		updateData["login"] = *login
+	}
+
+	if name != nil {
+		updateData["name"] = *name
+	}
+
+	if email != nil {
+		updateData["email"] = *email
+	}
+
+	if password != nil {
+		hashPassword, err := HashPassword(*password)
+		if err != nil {
+			return storage.UserModel{}, err
+		}
+
+		updateData["password"] = hashPassword
+	}
+
+	return s.storage.Update(ctx, ID, updateData)
 }
 
 func (s *Service) CheckPassword(ctx context.Context, login, password string) (storage.UserModel, error) {

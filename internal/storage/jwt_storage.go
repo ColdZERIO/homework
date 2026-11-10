@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"gorm.io/gorm"
 )
 
 func (s *Storage) AddRefreshToken(ctx context.Context, userID string, tokenString string) error {
@@ -18,24 +17,7 @@ func (s *Storage) AddRefreshToken(ctx context.Context, userID string, tokenStrin
 		IsActive:     true,
 	}
 
-	err := s.db.WithContext(ctx).Transaction(func(db *gorm.DB) error {
-		err := db.Model(&UserTokenModel{}).Where("user_id = ?", userID).Update("is_active", false).Error
-		if err != nil {
-			s.logger.Error(
-				"token base are empty...may by",
-				slog.String("user_id", userID),
-				slog.Any("error", err),
-			)
-			return err
-		}
-
-		err = db.Create(&token).Error
-		if err != nil {
-			return err
-		}
-
-		return nil
-	})
+	err := s.db.Create(&token).Error
 
 	if err != nil {
 		s.logger.Error(
@@ -48,7 +30,6 @@ func (s *Storage) AddRefreshToken(ctx context.Context, userID string, tokenStrin
 	}
 
 	return nil
-
 }
 
 func (s *Storage) GetRefreshToken(ctx context.Context, userID string) (string, error) {

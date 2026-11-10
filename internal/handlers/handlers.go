@@ -35,7 +35,7 @@ func (h *UserHandler) Create(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(PersistUserResponse{
+	_ = json.NewEncoder(w).Encode(PersistUserResponse{
 		ID:    user.ID,
 		Login: user.Login,
 		Name:  user.Name,
@@ -87,7 +87,7 @@ func (h *UserHandler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{
+	_ = json.NewEncoder(w).Encode(map[string]string{
 		"access_token":  accessToken,
 		"refresh_token": refreshToken,
 		"token_type":    "Bearer",
@@ -128,7 +128,7 @@ func (h *UserHandler) RefreshToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{
+	_ = json.NewEncoder(w).Encode(map[string]string{
 		"access_token": accessToken,
 		"token_type":   "Bearer",
 	})
@@ -159,7 +159,7 @@ func (h *UserHandler) Find(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(FindUserResponse{
+	_ = json.NewEncoder(w).Encode(FindUserResponse{
 		ID:        searchUser.ID,
 		Login:     searchUser.Login,
 		Name:      searchUser.Name,
@@ -198,13 +198,13 @@ func (h *UserHandler) Delete(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]any{
+	_ = json.NewEncoder(w).Encode(map[string]any{
 		"User deleted": userDeleted,
 	})
 }
 
 func (h *UserHandler) Update(w http.ResponseWriter, r *http.Request) {
-	var user PersistUserRequest
+	var user UpdateUserRequest
 
 	err := json.NewDecoder(r.Body).Decode(&user)
 	if err != nil {
@@ -220,15 +220,29 @@ func (h *UserHandler) Update(w http.ResponseWriter, r *http.Request) {
 		jsonResponseErr(w, http.StatusForbidden, "access denied")
 		return
 	}
-	userUpdated, err := h.service.Persist(r.Context(), user.ID, user.Login, user.Password, user.Name, user.Email)
+
+	if user.Password == nil && *user.Password == "" {
+		jsonResponseErr(w, http.StatusBadRequest, "password is required")
+		return
+	}
+
+	userUpdated, err := h.service.Update(
+		r.Context(),
+		user.ID,
+		user.Login,
+		user.Password,
+		user.Name,
+		user.Email,
+	)
+
 	if err != nil {
-		jsonResponseErr(w, http.StatusInternalServerError, "cant update in DB")
+		jsonResponseErr(w, http.StatusInternalServerError, "cant update user")
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(PersistUserResponse{
+	_ = json.NewEncoder(w).Encode(PersistUserResponse{
 		ID:    userUpdated.ID,
 		Login: userUpdated.Login,
 		Name:  userUpdated.Name,
@@ -267,7 +281,7 @@ func (h *UserHandler) FindUserList(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]any{
+	_ = json.NewEncoder(w).Encode(map[string]any{
 		"Users": userResponse.Users,
 	})
 }

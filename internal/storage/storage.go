@@ -11,6 +11,7 @@ import (
 
 type UserStorage interface {
 	Persist(ctx context.Context, userDB UserModel) (UserModel, error)
+	Update(ctx context.Context, ID string, updateData map[string]any) (UserModel, error)
 	Delete(ctx context.Context, id string) (string, error)
 	Find(ctx context.Context, id string) (UserModel, error)
 	GetUserID(ctx context.Context, login string) (UserModel, error)
@@ -36,26 +37,11 @@ func NewUserStorage(db *gorm.DB, cache *cache.Cache, logger *slog.Logger) *Stora
 func (s *Storage) Persist(ctx context.Context, userModel UserModel) (UserModel, error) {
 	key := KeyCacheID(userModel.ID)
 
-	if userModel.ID == "" {
-		userModel.ID = uuid.New().String()
-		err := s.db.WithContext(ctx).Create(&userModel).Error
-		if err != nil {
-			s.logger.Error(
-				"failed to create user in database",
-				slog.String("user_id", userModel.ID),
-				slog.Any("error", err),
-			)
-
-			return UserModel{}, err
-		}
-
-		s.cache.Set(key, userModel, ttl)
-	}
-
-	err := s.db.WithContext(ctx).Model(&userModel).Where("id = ?", userModel.ID).Updates(userModel).Error
+	userModel.ID = uuid.New().String()
+	err := s.db.WithContext(ctx).Create(&userModel).Error
 	if err != nil {
 		s.logger.Error(
-			"failed to get user from database",
+			"failed to create user in database",
 			slog.String("user_id", userModel.ID),
 			slog.Any("error", err),
 		)
@@ -63,9 +49,22 @@ func (s *Storage) Persist(ctx context.Context, userModel UserModel) (UserModel, 
 		return UserModel{}, err
 	}
 
-	s.cache.Set(key, userModel, ttl)
+	s.cache.Delete(key)
 
-	return userModel, nil
+	return s.Find(ctx, userModel.ID)
+}
+
+func (s *Storage) Update(ctx context.Context, ID string, updateData map[string]any) (UserModel, error) {
+	if len(updateData) > 0 {
+		err := s.db.WithContext(ctx).Model(&UserModel{}).Where("id = ?", ID).Updates(updateData).Error
+		if err != nil {
+			return UserModel{}, err
+		}
+	}
+
+	s.cache.Delete(KeyCacheID(ID))
+
+	return s.Find(ctx, ID)
 }
 
 func (s *Storage) Delete(ctx context.Context, id string) (string, error) {

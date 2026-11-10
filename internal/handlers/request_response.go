@@ -18,6 +18,14 @@ type PersistUserResponse struct {
 	Email string `json:"email"`
 }
 
+type UpdateUserRequest struct {
+	ID       string  `json:"id"`
+	Login    *string `json:"login"`
+	Password *string `json:"password"`
+	Name     *string `json:"name"`
+	Email    *string `json:"email"`
+}
+
 type FindUserRequest struct {
 	ID string `json:"id"`
 }
@@ -46,7 +54,7 @@ type DeleteUserRequest struct {
 }
 
 type DeleteUserResponse struct {
-	ID    string `json:"id"`
+	ID string `json:"id"`
 }
 
 type UserTokenResponse struct {
